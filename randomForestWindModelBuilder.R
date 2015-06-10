@@ -66,11 +66,12 @@ while(length(forests)<10){ # build an arbitrary number of forests
     absences <- absences[sample(1:nrow(absences), size=nrow(presences)),]
   }
   t <- rbind(presences,absences)
-  # smoke um if you got um
-  if(nrow(t)<1000) { 
-    t <- t[sample(1:nrow(t), size=1000, replace=T),]
+  # downscale to a consistent record density, sampling with replacement if necessary.
+  if(nrow(t)<1500) { 
+    t <- t[sample(1:nrow(t), size=1500, replace=T),]
+    warning("resampling extracted record table with replacement because n < 1500 -- this could lead to class imbalances")
   } else {
-    t <- t[sample(1:nrow(t), size=1000, replace=F),]
+    t <- t[sample(1:nrow(t), size=1500, replace=F),]
   }
   # report our ETA
   t2<- Sys.time()

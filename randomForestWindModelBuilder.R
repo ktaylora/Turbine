@@ -1,3 +1,11 @@
+# 
+# NON-PARAMETRIC WIND ENERGY SUITABILITY MODEL
+#
+# Author: Kyle Taylor (kyle.taylor@pljv.org), with inspiration from the usual suspects.
+#
+# This is a (functional) work in progress.  Will work on increasing portability, speed of record generation, and
+# dealing with class imbalances soon.
+#
 require(randomForest)
 require(rgdal)
 require(raster)

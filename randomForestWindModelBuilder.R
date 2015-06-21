@@ -1,7 +1,7 @@
 # 
 # NON-PARAMETRIC WIND ENERGY SUITABILITY MODEL
 #
-# Author: Kyle Taylor (kyle.taylor@pljv.org), with inspiration from the usual suspects.
+# Author: Kyle Taylor (kyle.taylor@pljv.org), with inspiration from the usual suspects (http://journals.plos.org/plosone/article?id=10.1371/journal.pone.0089210).
 #
 # This is a (functional) work in progress.  Will work on increasing portability, speed of record generation, and
 # dealing with class imbalances soon.

@@ -85,7 +85,8 @@ while(length(forests)<50){ # build an arbitrary number of forests
   t2<- Sys.time()
   cat(" -- eta: ~",as.numeric(t2-t1)*(100-(length(forests)+1)),"minutes remaining\n")
   # build our random forest
-  forests[[length(forests)+1]] <- randomForest(as.factor(resp)~.,data=t,ntree=100,norm.votes=F,do.trace=T)
+  diagnostics <- forests; # keep a log of the original forests for debugging purposes
+  forests[[length(forests)+1]] <- randomForest(as.factor(resp)~.,data=t,ntree=100,norm.votes=F,do.trace=T) # combine our forests
 };cat(" -- done.\n");
 # combine our forests into a forest
 m_rf <- do.call(randomForest::combine, forests)

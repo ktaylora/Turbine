@@ -30,7 +30,7 @@ source_wellpad_pts <- paste(HOME,"/PLJV/wind_energy_likelihood_model/data/USGSWi
        source_wellpad_pts <- source_wellpad_pts[!is.na(as.vector(sp::over(source_wellpad_pts,e))),]
 # generate point samples and forests
 forests <- list();
-while(length(forests)<10){ # build an arbitrary number of forests
+while(length(forests)<50){ # build an arbitrary number of forests
   # generate a series of N kernel density surfaces with a downsampled p=0.85 density
   cat(" -- generating absence surface from KDE.\n")
   focal <- SpatialPoints(source_wellpad_pts[sample(1:nrow(source_wellpad_pts),size=floor(0.85*nrow(source_wellpad_pts)),replace=T),])

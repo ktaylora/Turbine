@@ -85,9 +85,8 @@ while(length(forests)<50){ # build an arbitrary number of forests
   t2<- Sys.time()
   cat(" -- eta: ~",as.numeric(t2-t1)*(100-(length(forests)+1)),"minutes remaining\n")
   # build our random forest
-  diagnostics <- forests; # keep a log of the original forests for debugging purposes
-  forests[[length(forests)+1]] <- randomForest(as.factor(resp)~.,data=t,ntree=100,norm.votes=F,do.trace=T) # combine our forests
+  forests[[length(forests)+1]] <- randomForest(as.factor(resp)~.,data=t,ntree=100,norm.votes=F,do.trace=T)
 };cat(" -- done.\n");
-# combine our forests into a forest
+# combine our forests into a single forest we can predict with
 m_rf <- do.call(randomForest::combine, forests)
 save.image("rfWindModelProjectWorkspace.rdata")

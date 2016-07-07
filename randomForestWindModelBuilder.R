@@ -231,6 +231,12 @@ if(length(list.files(recursive=T,full.names=T,pattern=paste(transmission_capacit
   stop(paste("Error : Recursive find failed to find required transmission variables:",transmission_capacity_variables,sep=""))
 }
 
+# process wind production classes
+if(length(list.files(recursive=T,full.names=T,pattern=wind_production_variables))>0){
+  wind_production_vars <- lapply(list.files(recursive=T,full.names=T,pattern=wind_production_variables), FUN=raster)
+    wind_production_vars <- snapTo(wind_production_vars,to=explanatory_variables[[1]])
+      explanatory_variables <- append(explanatory_variables, wind_production_vars)
+}
 # process our turbine SpatialPoint data
 if(file.exists("turbine_points.shp")){
   turbines <- readOGR(HOME,"turbine_points",verbose=F)

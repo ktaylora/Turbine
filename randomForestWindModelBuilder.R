@@ -55,13 +55,13 @@ c(
 # proximity to transmission surfaces
 transmission_capacity_variables <-
 c(
-  "transmission_capacity_step_up.tif"
+  "transmission_capacity_step_up.tif",
   "transmission_capacity_100.tif",
   "transmission_capacity_100_161.tif",
   "transmission_capacity_230_287.tif",
   "transmission_capacity_345.tif",
-  "transmission_capacity_500.tif",
-}
+  "transmission_capacity_500.tif"
+)
 #
 # splitExtent()
 #
@@ -200,6 +200,7 @@ explanatory_variables <- list.files(recursive=T,pattern=paste(topographic_variab
 
 # are we missing topographic data?
 if(length(explanatory_variables) < length(topographic_variables)){
+  cat(" -- missing topographic variables. Will attempt to fetch/calculate missing from USGS.\n")
   e <- splitExtent(extent(REGION_EXTENT),multiple=5)
   fragments <- vector('list', length(e))
   # fetch raw DEM data from USGS

@@ -240,7 +240,7 @@ if(file.exists("turbine_points.shp")){
 }
 
 # parse our regional extent, if needed
-if(!inherits(source_wellpad_pts,"Spatial")){
+if(!inherits(turbines,"Spatial")){
   stop("Error: Failed to parse our turbine point shapefile for our run.")
 }
 

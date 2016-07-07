@@ -6,6 +6,8 @@
 # This is a (functional) work in progress.  Will work on increasing portability, speed of record generation, and
 # dealing with class imbalances soon.
 #
+# Target platform: A multi-core 64-bit windows machine with ample ram to support large raster operations.
+#
 
 #
 # include()
@@ -28,15 +30,11 @@
   }
 }
 
-.include('randomForest')
 .include('rgdal')
 .include('raster')
 .include('FedData')
 .include('spatstat')
-
-#
-# LOCAL FUNCTIONS
-#
+.include('randomForest')
 
 topographic_variables <-
 c(
@@ -47,6 +45,23 @@ c(
   "rough3.tif",
   "slope.tif"
 )
+
+# We lack average wind speed at 80 and 100 meters.
+# and must use NREL's production classes for now
+wind_production_variables <-
+c(
+  "wind_production_classes.tif"
+)
+# proximity to transmission surfaces
+transmission_capacity_variables <-
+c(
+  "transmission_capacity_step_up.tif"
+  "transmission_capacity_100.tif",
+  "transmission_capacity_100_161.tif",
+  "transmission_capacity_230_287.tif",
+  "transmission_capacity_345.tif",
+  "transmission_capacity_500.tif",
+}
 #
 # splitExtent()
 #
@@ -153,6 +168,14 @@ snapTo <- function(x,to=NULL,names=NULL,method='bilinear'){
   return(x)
 }
 
+pathToRgdal <- function(x){
+  .include('rgdal')
+  path <- unlist(strsplit(x,split="\\\\"))
+  layer <- unlist(strsplit(path[length(path)],split="[.]"))[1]
+  dsn <- paste(path[1:(length(path)-1)],collapse="\\")
+  return(readOGR(dsn,layer,verbose=F))
+}
+
 #
 # MAIN
 #
@@ -162,11 +185,7 @@ HOME <- Sys.getenv("HOME");
 if(file.exists("gplcc_region_extent.shp")){
   REGION_EXTENT <- readOGR(HOME,"gplcc_region_extent",verbose=F)
 } else {
-  REGION_EXTENT <- file.choose()
-  path <- unlist(strsplit(REGION_EXTENT,split="\\\\"))
-    layer <- path[length(path)]
-      dsn <- paste(path[1:(length(path)-1)],collapse="\\")
-  REGIONAL_EXTENT <- readOGR(layer,dsn,verbose=F)
+  REGION_EXTENT <- pathToRgdal(file.choose())
 }
 
 # parse our regional extent, if needed
@@ -174,12 +193,14 @@ if(!inherits(REGION_EXTENT,"Spatial")){
   stop("Error: Failed to parse a regional extent shapefile for our run.")
 }
 
-# raster source layers (explanatory data)
-explanatory_variables <- list.files(recursive=T,pattern=paste(topographic_variables,collapse="|"))
+# pre-processing : process our raster source layers and check for spatial consistency(explanatory data)
+
+# process topographic variables
+explanatory_variables <- list.files(recursive=T,pattern=paste(topographic_variables,collapse="|"), full.names=T)
 
 # are we missing topographic data?
-if(length(explanatory_variables)<length(topographic_variables)){
-  e <- splitExtent(extent(REGION_EXTENT),multiple=20)
+if(length(explanatory_variables) < length(topographic_variables)){
+  e <- splitExtent(extent(REGION_EXTENT),multiple=5)
   fragments <- vector('list', length(e))
   # fetch raw DEM data from USGS
   for(i in 1:length(fragments)){
@@ -193,47 +214,64 @@ if(length(explanatory_variables)<length(topographic_variables)){
     cat(topographic_variables[j],",")
     focal_variable <- lapply(fragments, function(x){ return(x[[j]]) })
       focal_variable <- do.call(mosaic,focal_variable)
-    writeRaster(focal_variable, paste(topographic_variables[j],"tif",sep="."), overwrite=T)
+    writeRaster(focal_variable, topographic_variables[j], overwrite=T)
   }
-
+  explanatory_variables <- lapply(list.files(recursive=T,pattern=paste(topographic_variables,collapse="|"), full.names=T), FUN=raster)
+} else {
+  explanatory_variables <- lapply(explanatory_variables, FUN=raster)
 }
 
-# delineate regional boundaries using the extent of BCR18/19
-e <- extent(raster(paste(HOME,"/PLJV/DEM/elevationBcr1819.tif",sep="")))*0.85
-  e<-as(e,'SpatialPolygons')
-    projection(e) <- projection(raster(paste(HOME,"/PLJV/DEM/elevationBcr1819.tif",sep="")))
-# read-in and crop our wellpad data to our extent
-source_wellpad_pts <- paste(HOME,"/PLJV/wind_energy_likelihood_model/data/USGSWind_Turbine_03_2014.zip",sep="")
-  unlink("/tmp/wp_pts",recursive=T, force=T); utils::unzip(source_wellpad_pts,exdir="/tmp/wp_pts")
-     source_wellpad_pts <- spTransform(readOGR("/tmp/wp_pts/","Onshore_Industrial_Wind_Turbine_Locations_for_the_United_States_to_March_2014",verbose=F), CRS(projection(e)))
-       source_wellpad_pts <- source_wellpad_pts[!is.na(as.vector(sp::over(source_wellpad_pts,e))),]
+# process transmission capacity data
+if(length(list.files(recursive=T,full.names=T,pattern=paste(transmission_capacity_variables, collapse="|"))) == length(transmission_capacity_variables)){
+  transmission_vars <- lapply(list.files(recursive=T,full.names=T,pattern=paste(transmission_capacity_variables, collapse="|")), FUN=raster)
+  # ensure spatial consistency by snapping transmission vars to existing stack, then add to stack
+  transmission_vars <- snapTo(transmission_vars,to=explanatory_variables[[1]])
+    explanatory_variables <- append(explanatory_variables, transmission_vars)
+} else {
+  stop(paste("Error : Recursive find failed to find required transmission variables:",transmission_capacity_variables,sep=""))
+}
+
+# process our turbine SpatialPoint data
+if(file.exists("turbine_points.shp")){
+  turbines <- readOGR(HOME,"turbine_points",verbose=F)
+} else {
+  cat(" -- please choose a shapefile containing our turbine point data")
+  turbines <- pathToRgdal(file.choose())
+}
+
+# parse our regional extent, if needed
+if(!inherits(source_wellpad_pts,"Spatial")){
+  stop("Error: Failed to parse our turbine point shapefile for our run.")
+}
+
+# pre-process our points to ensure we only include turbines within the extent of our project area
+turbines <- spTransform(turbines,CRS(projection(REGION_EXTENT)))
+  turbines <- turbines[as.vector(!is.na(sp::over(turbines,REGION_EXTENT))),]
+
 # generate point samples and forests
 forests <- list();
-while(length(forests)<50){ # build an arbitrary number of forests
+while(length(forests)<100){ # build an arbitrary number of forests
   # generate a series of N kernel density surfaces with a downsampled p=0.85 density
   cat(" -- generating absence surface from KDE.\n")
-  focal <- SpatialPoints(source_wellpad_pts[sample(1:nrow(source_wellpad_pts),size=floor(0.85*nrow(source_wellpad_pts)),replace=T),])
+  focal <- SpatialPoints(turbines[sample(1:nrow(turbines),size=floor(0.5*nrow(turbines)),replace=T),])
   w <- extent(focal)*1.5;
     w <- owin(xrange=w[c(1,2)],yrange=w[c(3,4)])
       focal <- unique(suppressWarnings(ppp(x=focal@coords[,1], y=focal@coords[,2], window=w)))
         presences <-  as(focal, 'SpatialPoints') # keep a copy of these as our "presences"
-          projection(presences) <- projection(source_wellpad_pts)
+          projection(presences) <- projection(turbines)
   d <- raster(density.ppp(focal,edge=T,sigma=1.05))
-    d <- abs((d/cellStats(d,stat=max))-1)
-      d <- sampleRandom(d,size=floor(ncell(d)*0.75),sp=T)
-        projection(d) <- projection(source_wellpad_pts)
+    d <- round(d/cellStats(d,stat=max)*100)
+
   # contribute this kernel to the absence pool, weighting 'distant' locations as more likely to represent absence than 'close' locations
-  absences <- NULL;
-  focal <- d[d$layer<1 & d$layer>0.85,]
-    absences <- focal[sample(1:nrow(focal),size=round(nrow(focal)*0.4)),]
-  focal <- d[d$layer<0.85 & d$layer>0.7,]
-    absences <- rbind(absences,focal[sample(1:nrow(focal),size=round(nrow(focal)*0.3)),])
-  focal <- d[d$layer<0.7 & d$layer>0.5,]
-    absences <- rbind(absences,focal[sample(1:nrow(focal),size=round(nrow(focal)*0.1)),])
-  focal <- d[d$layer<0.5 & d$layer>0.3,]
-    absences <- rbind(absences,focal[sample(1:nrow(focal),size=round(nrow(focal)*0.1)),])
-  focal <- d[d$layer<0.3 & d$layer>0.01,]
-    absences <- rbind(absences,focal[sample(1:nrow(focal),size=round(nrow(focal)*0.1)),])
+  SampleStratified <- function(d,count=500,split=70){
+    s <- suppressWarnings(sampleStratified(d<split,size=c(count,1),sp=T))
+      return(s[s$layer == 1,])
+  }
+  absences <- SampleStratified(d,count=900,split=50)
+  for(i in 1:4){
+    absences <- rbind(absences,SampleStratified(d,count=900,split=50+(i*10)))
+  }
+
   # extract our presence/absence data
   if(length(presences)>nrow(absences)){
     presences <- presences[sample(1:length(presences),size=nrow(absences)),]

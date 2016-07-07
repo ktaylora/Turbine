@@ -180,7 +180,7 @@ pathToRgdal <- function(x){
 # MAIN
 #
 
-HOME <- Sys.getenv("HOME");
+HOME <- Sys.getenv("HOME"); setwd(HOME);
 
 if(file.exists("gplcc_region_extent.shp")){
   REGION_EXTENT <- readOGR(HOME,"gplcc_region_extent",verbose=F)

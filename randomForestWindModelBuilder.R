@@ -208,22 +208,30 @@ explanatory_variables <- list.files(recursive=T,pattern=paste(topographic_variab
 
 # are we missing topographic data?
 if(length(explanatory_variables) < length(topographic_variables)){
-  cat(" -- missing topographic variables. Will attempt to fetch/calculate missing from USGS.\n")
-  e <- splitExtent(extent(REGION_EXTENT),multiple=5)
-  fragments <- vector('list', length(e))
-  # fetch raw DEM data from USGS
-  for(i in 1:length(fragments)){
-    cat(paste("[",i,"/",length(fragments),"]\n",sep=""))
-    template <- raster(extent(e[[i]]),resolution=30,crs=CRS(projection(REGION_EXTENT)))
-      fragments[[i]] <- fetchTopographicData(template) # fragments will be a list of lists with our six target topographic variables
-  }
-  # mosaic our fragments into each target topographic variables
-  cat(" -- mosaicing topographic grid for:")
-  for(j in 1:6){
-    cat(topographic_variables[j],",")
-    focal_variable <- lapply(fragments, function(x){ return(x[[j]]) })
-      focal_variable <- do.call(mosaic,focal_variable)
-    writeRaster(focal_variable, topographic_variables[j], overwrite=T)
+  if(file.exists("elevation.tif")){
+    cat(" -- processing topographic variables using local elevation.tif")
+    out <- fetchTopographicData(x=NULL, dem="elevation.tif")
+      for(j in 2:6){ # 1 = elevation.tif
+        writeRaster(out[[j]],topographic_variables[j],overwrite=T)
+      }
+  } else {
+    cat(" -- missing topographic variables. Will attempt to fetch/calculate missing from USGS.\n")
+    e <- splitExtent(extent(REGION_EXTENT),multiple=5)
+    fragments <- vector('list', length(e))
+    # fetch raw DEM data from USGS
+    for(i in 1:length(fragments)){
+      cat(paste("[",i,"/",length(fragments),"]\n",sep=""))
+      template <- raster(extent(e[[i]]),resolution=30,crs=CRS(projection(REGION_EXTENT)))
+        fragments[[i]] <- fetchTopographicData(template) # fragments will be a list of lists with our six target topographic variables
+    }
+    # mosaic our fragments into each target topographic variables
+    cat(" -- mosaicing topographic grid for:")
+    for(j in 1:6){
+      cat(topographic_variables[j],",")
+      focal_variable <- lapply(fragments, function(x){ return(x[[j]]) })
+        focal_variable <- do.call(mosaic,focal_variable)
+      writeRaster(focal_variable, topographic_variables[j], overwrite=T)
+    }
   }
   explanatory_variables <- lapply(list.files(recursive=T,pattern=paste(topographic_variables,collapse="|"), full.names=T), FUN=raster)
 } else {

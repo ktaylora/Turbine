@@ -50,7 +50,8 @@ c(
 # and must use NREL's production classes for now
 wind_production_variables <-
 c(
-  "wind_production_classes.tif"
+  "lower_48_wind_production.tif",
+  "us_wind_50m_no_exclusions.tif"
 )
 # proximity to transmission surfaces
 transmission_capacity_variables <-

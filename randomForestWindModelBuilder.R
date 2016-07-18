@@ -105,21 +105,28 @@ splitExtent <- function(e=NULL,multiple=2){
 # fetchTopographicData()
 # wrapper function for FedData::get_ned()
 #
-fetchTopographicData <- function(x,useLocal=FALSE){
+fetchTopographicData <- function(x,dem=NULL){
   # parse list or individual raster object
-  if(useLocal){
-    return(lapply(topographic_variables,FUN=raster))
+  if(is.null(dem)){
+    # calculate from a live DEM we fetch from NED
+    if(!require(FedData)) stop("'fedData' package not available -- please install")
+    # clean-up any lurking temp file space.  Sometimes get_net doesn't do this all the way.
+    unlink("/tmp/1",recursive=T,force=T)
+      unlink("/tmp/dem",recursive=T,force=T)
+    x_ <- try(get_ned(template=x,res="1",label="dem",extraction.dir="/tmp",raw.dir="/tmp",force.redo=T))
+      while(class(x_) == "try-error"){ x_ <- try(get_ned(template=x,res="1",label="dem",extraction.dir="/tmp",raw.dir="/tmp",force.redo=T)) }
+        x <- x_; rm(x_)
+  } else {
+    x <- raster(dem)
   }
-  # calculate from a live DEM we fetch from NED
-  if(!require(FedData)) stop("'FedData' package not available -- please install")
-  # clean-up any lurking temp file space.  Sometimes get_net doesn't do this all the way.
-  unlink("tmp/1",recursive=T,force=T)
-    unlink("tmp/dem",recursive=T,force=T)
-  x_ <- try(get_ned(template=x,res="1",label="dem",extraction.dir="tmp",raw.dir="tmp",force.redo=T))
-    while(class(x_) == "try-error"){ x_ <- try(get_ned(template=x,res="1",label="dem",extraction.dir="tmp",raw.dir="tmp",force.redo=T)) }
-      x <- x_; rm(x_)
-  topo_output <- bulkCalculateTopographicVariables(x)
-    return(topo_output)
+  topo_output <- list()
+    topo_output[[1]] <- x # elevation
+    topo_output[[2]] <- raster::focal(x,w=matrix(1,nrow=3,ncol=3),fun=sd,na.rm=T) # StdDevElev (3x3)
+    topo_output[[3]] <- raster::terrain(x,opt='aspect',neighbors=8)
+    topo_output[[4]] <- raster::focal(x, w=matrix(1,nrow=27,ncol=27), fun=function(x, ...) max(x) - min(x),pad=TRUE, padValue=NA, na.rm=TRUE)
+    topo_output[[5]] <- raster::focal(x, w=matrix(1,nrow=3,ncol=3), fun=function(x, ...) max(x) - min(x),pad=TRUE, padValue=NA, na.rm=TRUE)
+    topo_output[[6]] <- raster::terrain(x,opt='slope',neighbors=8)
+  return(topo_output)
 }
 #
 # bulkCalculateTopographicVariables()

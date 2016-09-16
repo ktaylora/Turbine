@@ -36,6 +36,7 @@
 .include('FedData')
 .include('rgeos')
 .include('randomForest')
+.include('rfUtilities')
 .include('landscapeAnalysis')
 
 topographic_variables <-
@@ -52,22 +53,26 @@ c(
 # and must use NREL's production classes for now
 wind_production_variables <-
 c(
-  "lower_48_wind_production.tif",
-  "us_wind_50m_no_exclusions.tif"
+  "wind_production_tx.tif",
 )
 # proximity to transmission surfaces
 transmission_capacity_variables <-
 c(
-  "transmission_capacity_step_up.tif",
-  "transmission_capacity_100.tif",
-  "transmission_capacity_100_161.tif",
-  "transmission_capacity_230_287.tif",
-  "transmission_capacity_345.tif",
-  "transmission_capacity_500.tif"
+  "raster_115.tif",
+  "raster_138.tif",
+  "raster_230.tif",
+  "raster_345.tif",
+  "raster_lte69.tif"
 )
 
 recursiveFindFile <- function(name=NULL,root=Sys.getenv("HOME")){
+  if(length(name)>1) name <- paste(name,collapse="|")
   return(list.files(root,pattern=name,recursive=T,full.names=T))
+}
+
+findRoot <- function(x=NULL){
+  p <- unlist(strsplit(x,split="/"))
+  return(paste(p[1:(length(p)-1)],collapse="/"))
 }
 
 fetchTopographicData <- function(x,dem=NULL){
@@ -87,10 +92,10 @@ fetchTopographicData <- function(x,dem=NULL){
   topo_output <- list()
     topo_output[[1]] <- x # elevation
     topo_output[[2]] <- raster::focal(x,w=matrix(1,nrow=3,ncol=3),fun=sd,na.rm=T) # StdDevElev (3x3)
-    topo_output[[3]] <- raster::terrain(x,opt='aspect',neighbors=8)
+    topo_output[[3]] <- raster::terrain(x,opt='aspect',neighbors=8, na.rm=T)
     topo_output[[4]] <- raster::focal(x, w=matrix(1,nrow=27,ncol=27), fun=function(x, ...) max(x) - min(x),pad=TRUE, padValue=NA, na.rm=TRUE)
     topo_output[[5]] <- raster::focal(x, w=matrix(1,nrow=3,ncol=3), fun=function(x, ...) max(x) - min(x),pad=TRUE, padValue=NA, na.rm=TRUE)
-    topo_output[[6]] <- raster::terrain(x,opt='slope',neighbors=8)
+    topo_output[[6]] <- raster::terrain(x,opt='slope',neighbors=8, na.rm=T)
   return(topo_output)
 }
 
@@ -98,30 +103,80 @@ fetchTopographicData <- function(x,dem=NULL){
 # MAIN
 #
 
+#
+# 1. BUILD OUR TRAINING DATASET
+#
+
 # fetch our turbine points and extent of the project area
-s <- recursiveFindFile(root="/home/ktaylora/Incoming","tx.shp")
+training_data <- recursiveFindFile(root="/home/ktaylora/Incoming","training_data_tx.shp")
+if(length(training_data)!=0){
+  TRAINING_DATA_PATH <- findRoot(training_data)
+  training_data <- readOGRfromPath(training_data)
+   sample_space <- raster(paste(TRAINING_DATA_PATH,"/snap_grid.tif",sep=""))
+} else {
+  s <- recursiveFindFile(root="/home/ktaylora/Incoming","tx.shp")
+  TRAINING_DATA_PATH <- findRoot(s[1])
   extent <- landscapeAnalysis:::.readOGRfromPath(s[2])
     s <- landscapeAnalysis:::.readOGRfromPath(s[1])
-      extent <- spTransform(extent,CRS(projection(s))) # snap to a consistent CRS
+      extent <- spTransform(extent,CRS(projection(s))) # reproject to a consistent CRS
+  # generate some random absences and merge records into a training set for Random Forests
+  cat(" -- generating pseudo-absences and building a training data set for RF.\n")
+  sample_space <- rasterize(s,raster(resolution=(1/111319.9)*30,ext=extent(extent),crs=CRS(projection(extent))),field="layer") > 0
+    writeRaster(sample_space, paste(TRAINING_DATA_PATH,"/snap_grid.tif",sep=""),overwrite=T)
+  # censor all observations so that absences are at-least ~500 meters away
+  # from a known wind turbine -- as identified by A. Daniels for K=1 NN distance
+  absences <- sampleRandom(sample_space,size=round(nrow(s)*3.5),sp=T,na.rm=F)
+    absences <- absences[is.na(sp::over(absences,rgeos::gBuffer(s,byid=T,width=(1/111319.9)*500))[,1]),]
+      absences <- absences[as.vector(!is.na(sp::over(absences,extent)[,1])),] # we only have transmission record coverage for TX -- censor our absences accordingly
+  if(nrow(absences) > nrow(s)){
+    absences <- absences[sample(1:nrow(absences), size=nrow(s)),] # subsample our absences to equal-prevalence with turbine locations so we have balanced classes
+  }
+  # merge presences/pseudo-absences into a single table and write to disk
+  names(s) <- names(absences) <- "layer"
+  training_data <- rbind(s,absences)
+    training_data@data <- data.frame(response=c(rep(1,nrow(s)),rep(0,nrow(absences))))
 
-# generate some random absences and merge records into a training set for Random Forests
-cat(" -- generating pseudo-absences and building a training data set for RF.\n")
-sample_space <- rasterize(s,raster(resolution=(1/111319.9)*30,ext=extent(s),crs=CRS(projection(s))),field="layer") > 0
-# Generate random, background pseudo-absences.  Censor all observations so that absences are at-least 343 meters away
-# from a known wind turbine -- as identified by A. Daniels for K=1 NN distance
-absences <- sampleRandom(sample_space,size=round(nrow(s)*1.2),sp=T,na.rm=F)
-  absences <- absences[is.na(sp::over(absences,rgeos::gBuffer(s,byid=T,width=(1/111319.9)*343))[,1]),]
-if(nrow(absences) > nrow(s)){
-  absences <- absences[sample(1:nrow(absences), size=nrow(s)),] # subsample our absences to equal-prevalence with turbine locations so we have balanced classes
+  writeOGR(training_data,"/home/ktaylora/Incoming/wind_energy_development/Vector","training_data_tx",driver="ESRI Shapefile",overwrite=T)
 }
 
-training_data <- rbind(s,absences)
-  training_data@data <- data.frame(response=c(rep(1,nrow(s)),rep(0,nrow(absences))))
-
-# calculate our topographic variables
-if(length(recursiveFindFile(root="/home/ktaylora/Incoming",topographic_variables[1]))==0)){
-  topographic_variables <- fetchTopographicData(sample_space)
-}
+#
+# 2. GENERATE OUR EXPLANATORY LANDSCAPE VARIABLES
+#
 
 # buffer Texas project area by 10 kilometers to account for boundary effect in calculating landscape metrics
-extent <- rgeos::gBuffer(extent,byid=T,width=(1/111319.9)*10000)
+# extent <- rgeos::gBuffer(extent,byid=T,width=(1/111319.9)*10000)
+
+# calculate our topographic variables
+TOPO_VAR_PATH <- "/home/ktaylora/Incoming/wind_energy_development/Raster"
+if(length(recursiveFindFile(root=TOPO_VAR_PATH,topographic_variables[2]))==0)){
+  if(file.exists(recursiveFindFile(root=TOPO_VAR_PATH,topographic_variables[1]))){ # do we have an existing project DEM to work with?
+    topographic_variables <- fetchTopographicData(sample_space,dem=recursiveFindFile(root=TOPO_VAR_PATH,topographic_variables[1]))
+  } else {
+    topographic_variables <- fetchTopographicData(sample_space)
+  }
+  # save to disk
+  mapply(topographic_variables,)
+}
+
+# calculate our wind production variables
+WIND_PROD_VAR_PATH = "/home/ktaylora/Incoming/wind_energy_development/Raster"
+if(length(recursiveFindFile(root=WIND_PROD_VAR_PATH,name=wind_production_variables[1])) == 0){
+  cat(" -- processing wind production class covariates\n")
+  wind_production_variables_original <- gsub(wind_production_variables,pattern="_tx",replacement="")
+  for(i in 1:length(wind_production_variables_original)){
+    r <- raster(recursiveFindFile(root="/mnt/local_nfs_drive/Workspace/wind_energy_development/",name=wind_production_variables_original[i]))
+      r <- snapTo(r,to=sample_space)
+    writeRaster(r,paste(WIND_PROD_VAR_PATH,wind_production_variables[i]),overwrite=T)
+  }
+}
+
+# calculate our transmission capacity data
+TRANS_CAP_VAR_PATH = "/home/ktaylora/Incoming/wind_energy_development/Raster"
+if(length(recursiveFindFile(root=TRANS_CAP_VAR_PATH,name=transmission_capacity_variables[1])) == 0){
+  stop(paste("transmission capacity data missing from:",TRANS_CAP_VAR_PATH,"; please pre-calculate."))
+} else {
+  recursiveFindFile(root=TRANS_CAP_VAR_PATH,name=transmission_capacity_variables)
+}
+#
+# 3. FIT OUR MODEL AND OPTIMIZE VARIABLE SELECTION
+#

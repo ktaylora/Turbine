@@ -63,10 +63,12 @@ unpack_faa_zip <- function(x,write=T){
     if(i%%10==0){ cat(".") }
   }; cat("\n");
   # re-format as a SpatialPointsDataFrame and return to user
-  pts <- rgdal::SpatialPointsDataFrame(coords=data.frame(x=coords$x,y=coords$y),data=data.frame(year=coords$year))
+  pts <- sp::SpatialPointsDataFrame(coords=data.frame(x=coords$x,y=coords$y),data=data.frame(year=coords$year))
     raster::projection(pts) <- raster::projection("+init=epsg:4326")
   if(write){
     rgdal::writeOGR(pts,".",paste(unlist(strsplit(x,split="[.]"))[[1]],"_pts",sep=""),driver="ESRI Shapefile",overwrite=T)
   }
+  # clean-up
+  unlink(list.files(pattern=".DAT$|.Dat$"))
   return(pts)
 }

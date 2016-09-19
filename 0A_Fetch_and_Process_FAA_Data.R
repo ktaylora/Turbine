@@ -41,22 +41,32 @@ unpack_faa_zip <- function(x,write=T){
     northing <- degrees_n+(minutes_n/60)+(seconds_n/3600)
     # WESTING
     westing <- ln[nchar(ln)==6]
+    if(sum(grepl(westing[nchar(westing)==6],pattern=".*.[.].*W"))>0){ # are we using a true westing coordinate?
       westing <- westing[grepl(westing[nchar(westing)==6],pattern=".*.[.].*W")]
-    degrees_w <- as.numeric(ln[which(grepl(ln,pattern=westing))-2])
-      minutes_w <- as.numeric(ln[which(grepl(ln,pattern=westing))-1])
-        seconds_w <- as.numeric(substr(westing,1,nchar(westing)-1))
-    westing <- degrees_w+(minutes_w/60)+(seconds_w/3600)
-    # Year
+      degrees_w <- as.numeric(ln[which(grepl(ln,pattern=westing))-2])
+        minutes_w <- as.numeric(ln[which(grepl(ln,pattern=westing))-1])
+          seconds_w <- as.numeric(substr(westing,1,nchar(westing)-1))
+      westing <- -1*(degrees_w+(minutes_w/60)+(seconds_w/3600))
+    } else if(sum(grepl(westing[nchar(westing)==6],pattern=".*.[.].*E"))>0){ # this must be an easting coordinate
+      westing <- westing[grepl(westing[nchar(westing)==6],pattern=".*.[.].*E")]
+      degrees_w <- as.numeric(ln[which(grepl(ln,pattern=westing))-2])
+        minutes_w <- as.numeric(ln[which(grepl(ln,pattern=westing))-1])
+          seconds_w <- as.numeric(substr(westing,1,nchar(westing)-1))
+      westing <- degrees_w+(minutes_w/60)+(seconds_w/3600)
+    } else {
+      stop(paste("unknown westing coordinate at:",westing))
+    }
+    # YEAR
     year <- as.numeric(substr(ln[length(ln)-1],1,4))
     # BIND to master table
-    coords <- rbind(coords,data.frame(x=-1*westing,y=northing,year=year))
+    coords <- rbind(coords,data.frame(x=westing,y=northing,year=year))
     if(i%%10==0){ cat(".") }
   }; cat("\n");
   # re-format as a SpatialPointsDataFrame and return to user
   pts <- rgdal::SpatialPointsDataFrame(coords=data.frame(x=coords$x,y=coords$y),data=data.frame(year=coords$year))
     raster::projection(pts) <- raster::projection("+init=epsg:4326")
   if(write){
-    rgdal::writeOGR(pts,".",paste(unlist(strsplit(x,split="[.]"))[1]"_pts",sep=""),driver="ESRI Shapefile",overwrite=T)
+    rgdal::writeOGR(pts,".",paste(unlist(strsplit(x,split="[.]"))[[1]],"_pts",sep=""),driver="ESRI Shapefile",overwrite=T)
   }
   return(pts)
 }

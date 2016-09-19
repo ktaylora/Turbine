@@ -1,6 +1,17 @@
+#
+# Automated Web-scraping Thingy
+# Script will automatically fetch digital obstruction data from the FAA and process
+# wind turbines into a WGS84 projected shapefile.  Create a CRON job to run ever 2 months and go crazy.
+#
+# Author: Kyle Taylor (kyle.taylor@pljv.org)
+#
+
 require(raster)
 require(rgdal)
 
+# ' scrape a static faa.gov URL for digital obstruction zipfiles and download the most recent zipfile.
+# '
+# @value returns the filename of the download FAA zipfile
 web_scrape_faa <- function(){
   FAA_OBSTRUCTIONS <- "https://www.faa.gov/air_traffic/flight_info/aeronav/digital_products/dof/"
   download.file(FAA_OBSTRUCTIONS,"index.html",quiet=T)
@@ -22,7 +33,11 @@ web_scrape_faa <- function(){
   download.file(paste(FAA_OBSTRUCTIONS,lines,sep=""),destfile=file,quiet=T)
   return(file)
 }
-
+# ' unpack an FAA zipfile and return as SpatialPointsDataFrame to the user.
+# '
+# @param x zipfile name containing FAA obstruction data
+# @param write optionally write SpatialPointsDataFrame to current working directory.
+# @value returns wind turbine data to the user as a SpatialPointsDataFrame
 unpack_faa_zip <- function(x,write=T){
   unzip(x)
   coords <- data.frame()

@@ -123,10 +123,10 @@ if(length(training_data)!=0){
   cat(" -- generating pseudo-absences and building a training data set for RF.\n")
   sample_space <- rasterize(s,raster(resolution=(1/111319.9)*30,ext=extent(extent),crs=CRS(projection(extent))),field="layer") > 0
     writeRaster(sample_space, paste(TRAINING_DATA_PATH,"/snap_grid.tif",sep=""),overwrite=T)
-  # censor all observations so that absences are at-least ~500 meters away
+  # censor all observations so that absences are at-least ~1000 meters away
   # from a known wind turbine -- as identified by A. Daniels for K=1 NN distance
   absences <- sampleRandom(sample_space,size=round(nrow(s)*3.5),sp=T,na.rm=F)
-    absences <- absences[is.na(sp::over(absences,rgeos::gBuffer(s,byid=T,width=(1/111319.9)*500))[,1]),]
+    absences <- absences[is.na(sp::over(absences,rgeos::gBuffer(s,byid=T,width=(1/111319.9)*1000))[,1]),]
       absences <- absences[as.vector(!is.na(sp::over(absences,extent)[,1])),] # we only have transmission record coverage for TX -- censor our absences accordingly
   if(nrow(absences) > nrow(s)){
     absences <- absences[sample(1:nrow(absences), size=nrow(s)),] # subsample our absences to equal-prevalence with turbine locations so we have balanced classes

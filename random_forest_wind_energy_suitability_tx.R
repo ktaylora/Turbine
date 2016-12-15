@@ -177,6 +177,18 @@ if(length(recursiveFindFile(root=TRANS_CAP_VAR_PATH,name=transmission_capacity_v
 } else {
   recursiveFindFile(root=TRANS_CAP_VAR_PATH,name=transmission_capacity_variables)
 }
+                                      
+# aggregate our raster surfaces and extract our covariates into a table that we can process
+t <- extract(transmission_capacity_variables,training_data,df=T)                                      
+                 wind_production_variables
+                 topographic_variables
 #
 # 3. FIT OUR MODEL AND OPTIMIZE VARIABLE SELECTION
 #
+model_sel <- rf.modelSel(ydata=as.factor(t$response),
+                         xdata=t[,!grepl(names(t),pattern="response")],
+                         parsimony=0.3,
+                         imp.scale="se",
+                         r=seq(0,1,0.05),
+                         seed=25,
+                         final.model=T)

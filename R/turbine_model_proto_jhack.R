@@ -1,12 +1,24 @@
+argv <- commandArgs(trailingOnly=T)
+
+bs_sample <- function(pts=NULL){
+    return(NULL)
+  }
+  
 # 1. read wind turbine points 
-wind_pts <- OpenIMBCR:::readOGRfromPath("/gis_data/Wind/faa_products/wind_turbines_feb_26_2018.shp")
+wind_pts <- OpenIMBCR:::readOGRfromPath(
+    "/gis_data/Wind/faa_products/wind_turbines_feb_26_2018.shp"
+  )
 
 # mask all points outside of the PLJV region
-boundary <- OpenIMBCR:::readOGRfromPath("/gis_data/PLJV/PLJV_Boundary.shp")
+boundary <- sp::spTransform(
+      OpenIMBCR:::readOGRfromPath(
+        "/gis_data/PLJV/PLJV_Boundary.shp"
+      ),
+      sp::CRS(raster::projection(wind_pts))
+    )
 
-boundary <- sp::spTransform(boundary, sp::CRS(raster::projection(wind_pts)))
-not_overlapping <- is.na(sp::over(wind_pts, boundary)[,1])
-wind_pts <- wind_pts[!not_overlapping,]
+overlapping <- is.na(sp::over(wind_pts, boundary)[,1])
+wind_pts <- wind_pts[!overlapping,]
 # subset the turbine dataset into observations from 2008 and beyond.
 wind_pts <- wind_pts[wind_pts@data$year>=2008,]
 

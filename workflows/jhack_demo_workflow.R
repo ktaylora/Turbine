@@ -90,6 +90,7 @@ training_chunks <- testing_chunks <- list()
 
 # From 1999:2004, let's bag (sample with replacement) our input dataset 
 cat(" -- rebagging timeseries (1999:2004):")
+
 training_chunks[[1]] <- 
   lapply(
     X=1:N_BAGGING,
@@ -105,7 +106,9 @@ training_chunks[[1]] <-
     }
   )
 cat("\n")
+
 cat(" -- building evaluation dataset [1] (2005:2010)\n")
+
 testing_chunks[[1]] <- 
   merge_presences_absences_by_year(
       wind_pts, 
@@ -114,7 +117,9 @@ testing_chunks[[1]] <-
       bag=F
     )
 # From 2010:2012, let's bag (sample with replacement) our input dataset 
+
 cat(" -- rebagging timeseries (2011:2014):")
+
 training_chunks[[2]] <- 
   lapply(
     X=1:N_BAGGING,
@@ -130,7 +135,9 @@ training_chunks[[2]] <-
     }
   )
 cat("\n")
+
 cat(" -- building evaluation dataset [2] (2015:2017)\n")
+
 testing_chunks[[2]] <- 
   merge_presences_absences_by_year(
       wind_pts, 

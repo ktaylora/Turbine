@@ -26,6 +26,8 @@ N_BAGGING <- 999 # how many times should we re-sample our input datasets?
 # Main
 #
 
+require(Turbine)
+
 # 1. read wind turbine points 
 wind_pts <- OpenIMBCR:::readOGRfromPath(
     "/gis_data/Wind/faa_products/wind_turbines_feb_26_2018.shp"
@@ -86,7 +88,7 @@ build_out <- build_out[2:nrow(build_out),] # drop 1998 -- it's crap
 
 training_chunks <- testing_chunks <- list()
 
-# From 1999:2003, let's bag (sample with replacement) our input dataset 
+# From 1999:2004, let's bag (sample with replacement) our input dataset 
 cat(" -- rebagging timeseries (1999:2004):")
 training_chunks[[1]] <- 
   lapply(

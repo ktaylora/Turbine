@@ -9,11 +9,13 @@
 # __email__ = "kyle.taylor@pljv.org"
 # __status__ = "Testing"
 #
+options(warn = -1, error=traceback)
 argv <- commandArgs(trailingOnly=T)
 
 bs_sample <- function(pts=NULL){
     return(NULL)
   }
+  
 #' generate a large pool of random pseudo-absences within a geographic boundary 
 #' using a set of user-specified wind turbine point locations. The pool will be 
 #' arbitrarily large (nrow(pts)*iter) with the intention that the dataset will
@@ -40,7 +42,7 @@ gen_pseudo_absences <- function(pts=NULL, boundary=NULL, iter=100, buffer_width=
       crs=sp::CRS(raster::projection(boundary))
     )
   # set our pool to zero  
-  values(wind_pts_raster) <- 0  
+  raster::values(wind_pts_raster) <- 0  
   # randomly generate a pool of pseudo-absences across n=iter steps
   cat(" -- iteritively re-sampling absence space:")
   pseudo_absences <- do.call(sp::rbind.SpatialPointsDataFrame, lapply(
@@ -63,10 +65,13 @@ gen_pseudo_absences <- function(pts=NULL, boundary=NULL, iter=100, buffer_width=
   # reproject back to our native CRS and return to user
   return(sp::spTransform(pseudo_absences, original_crs))
 }
-
 select_records_by_years <- function(pts=NULL, years=NULL){
 
   }
+
+#
+# Main
+#
   
 # 1. read wind turbine points 
 wind_pts <- OpenIMBCR:::readOGRfromPath(
@@ -80,50 +85,38 @@ boundary <- sp::spTransform(
       ),
       sp::CRS(raster::projection(wind_pts))
     )
-
 overlapping <- is.na(sp::over(wind_pts, boundary)[,1])
 wind_pts <- wind_pts[!overlapping,]
-# subset the turbine dataset into observations from 2008 and beyond.
-wind_pts <- wind_pts[wind_pts@data$year>=2008,]
-
-#writeOGR(wind_pts,".", "my_wind_pts", driver="ESRI Shapefile", overwrite=T)
 
 # 2. Generate Pseudo-absences
+pseudo_abs_pool <- gen_pseudo_absences(
+    wind_pts, 
+    boundary=boundary
+  )
 
-# 2.1 Generate raster of presences
-wind_pts_raster <- rasterize(
-  wind_pts,
-  raster(resolution=(1/111319.9)*30,
-         ext=extent(boundary),
-         crs=CRS(projection(boundary))),
-         field="ors",
-         progress='text') > 0 
-#writeRaster(wind_pts_raster, "wind_pts_raster", format = "GTiff", datatype = "LOG1S", 
-#            overwrite=T, progress = "text")
-# LOG1S not working so R reverts datatype to INT1S. Step takes long time!
+# trend extrapolation of regional wind build-out -- how many turbines have 
+# gone-up over the span of our dataset?
 
-# 2.2 Generate/cull pseudo-absences
-absences <- sampleRandom(wind_pts_raster,size=round(nrow(wind_pts)*3),sp=T,na.rm=F)
-# I multiply my wind_pts by 3 to create some wiggle room.
-# The line below takes out points within a 1,000 meter radius of wind_pts (turbines)
-absences <- absences[is.na(sp::over(absences,rgeos::gBuffer(wind_pts,byid=T,width=(1/111319.9)*1000))[,1]),]
-# This line takes out points that lie within wind_points_raster but outside the PLJV boundary.
-# The two extents are not contiguous; wind_points_raster is a square as large as the PLJV boundary
-# at its widest and tallest points. We might consider masking out both the non-pljv area and turbine
-# area before we generate absences at all so we don't have to allow for wiggle room, because I
-# guess there is a small chance a 3x sample still wouldn't be big enough to ensure there are as many
-# pseudo-absences as turbines.
-absences <- absences[as.vector(!is.na(sp::over(absences,boundary)[,1])),]
-if(nrow(absences) > nrow(wind_pts)){
-  absences <- absences[sample(1:nrow(absences), size=nrow(wind_pts)),] 
-}
+build_out <- data.frame(table(wind_pts$year))
+  colnames(build_out) <- c("year", "n_built")
+build_out$year <- as.numeric(as.vector(build_out$year))
+# let's drop the current year from consideration -- sample size is off
+# because it isn't over yet.
+build_out <- build_out[1:(nrow(build_out)-1),] 
 
-# 2.3 combine turbines and pseudo-absences into a dataframe
-names(wind_pts) <- names(absences) <- "layer"
-training_data <- rbind(wind_pts[,1], absences)
-training_data@data <- data.frame(response=c(rep(1,nrow(wind_pts)),rep(0,nrow(absences))))
+plot(log(n_built) ~ year, data=build_out, type="l")
+  grid(); grid();
+  points(log(n_built) ~ year, data=build_out, pch=15)
 
-writeOGR(training_data,"presence_absence_vector", "training data", driver="ESRI Shapefile",overwrite=T)
+# Does agricultural production in areas around wind farms change after wind goes up? 
+# How so?  
+
+# Given energy production capacity (MWh), how much revenue has this generated?
+
+# How does energy production capacity for wind compare to traditional oil and gas
+# for the region? How much more build-out would have to occur for wind to provide
+# an adequate substitution for oil and gas?
+
 
 # 3.1 Extract topographic predictor variables:
 topographic_variables <-

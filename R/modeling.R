@@ -28,7 +28,6 @@ merge_presences_absences_by_year <- function(presences=NULL, absences=NULL, year
     absences@data <- data.frame(response=rep(0, nrow(absences)))
     return(sp::rbind.SpatialPointsDataFrame(presences,absences))
 }
-  
 #' generate a large pool of random pseudo-absences within a geographic boundary 
 #' using a set of user-specified wind turbine point locations. The pool will be 
 #' arbitrarily large (nrow(pts)*iter) with the intention that the dataset will

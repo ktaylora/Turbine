@@ -2,7 +2,7 @@
 #
 # __author__ = "Joe Hack, Kyle Taylor"
 # __copyright__ = "Copyright 2018, Playa Lakes Joint Venture"
-# __credits__ = ["Kyle Taylor", "Alex Daniels"]
+# __credits__ = ["Joe Hack", "Kyle Taylor"]
 # __license__ = "GPL"
 # __version__ = "3"
 # __maintainer__ = "Kyle Taylor"

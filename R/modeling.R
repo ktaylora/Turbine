@@ -9,6 +9,9 @@
 # __email__ = "kyle.taylor@pljv.org"
 # __status__ = "Testing"
 #
+
+#' merge presences and absences SpatialPoints data.frame using a 'year' attribute
+#' @export
 merge_presences_absences_by_year <- function(presences=NULL, absences=NULL, years=NULL, bag=T){
     presences  <- presences[presences$year %in% years, ]
     if(bag){
@@ -32,6 +35,7 @@ merge_presences_absences_by_year <- function(presences=NULL, absences=NULL, year
 #' using a set of user-specified wind turbine point locations. The pool will be 
 #' arbitrarily large (nrow(pts)*iter) with the intention that the dataset will
 #' be downsampled through a bagging procedure down-the-line.
+#' @export
 gen_pseudo_absences <- function(pts=NULL, boundary=NULL, iter=100, buffer_width=1000){
   # let's reproject our data to a planar geography for rgeos
   original_crs <- sp::CRS(raster::projection(pts))

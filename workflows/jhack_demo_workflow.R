@@ -16,6 +16,29 @@
 options(warn = -1, error=traceback)
 
 #
+# Local functions
+#
+rebag_timeseries <- function(wind_pts=NULL, pseudo_abs_pool=NULL, years=NULL){
+  cat(paste(" -- rebagging timeseries (",paste(range(years), collapse=":"),"):",sep=""))
+  training_chunks <-
+    lapply(
+      X=1:N_BAGGING,
+      FUN=function(x){
+        cat(".")
+        return(
+          Turbine:::merge_presences_absences_by_year(
+            wind_pts,
+            pseudo_abs_pool,
+            years=years
+          )
+        )
+      }
+    )
+  cat("\n")
+  return(training_chunks)
+}
+
+#
 # Runtime arguments
 #
 
@@ -55,7 +78,6 @@ pseudo_abs_pool <- Turbine:::gen_pseudo_absences(
 
 build_out <- data.frame(table(wind_pts$year))
   colnames(build_out) <- c("year", "n_built")
-
 build_out$year <- as.numeric(as.vector(build_out$year))
 # let's drop the current year from consideration -- sample size is off
 # because it isn't over yet.
@@ -92,23 +114,12 @@ build_out <- build_out[2:nrow(build_out),] # drop 1998 -- it's crap
 training_chunks <- testing_chunks <- list()
 
 # From 1999:2004, let's bag (sample with replacement) our input dataset
-cat(" -- rebagging timeseries (1999:2004):")
 
-training_chunks[[1]] <-
-  lapply(
-    X=1:N_BAGGING,
-    FUN=function(x){
-      cat(".")
-      return(
-        merge_presences_absences_by_year(
-          wind_pts,
-          pseudo_abs_pool,
-          years=1999:2004
-          )
-      )
-    }
-  )
-cat("\n")
+training_chunks[[1]] <- rebag_timeseries(
+    wind_pts,
+    pseudo_abs_pool,
+    years=1994:2004
+)
 
 cat(" -- building evaluation dataset [1] (2005:2010)\n")
 
@@ -118,26 +129,14 @@ testing_chunks[[1]] <-
       pseudo_abs_pool,
       years=2005:2010,
       bag=F
-    )
-# From 2010:2012, let's bag (sample with replacement) our input dataset
-
-cat(" -- rebagging timeseries (2011:2014):")
-
-training_chunks[[2]] <-
-  lapply(
-    X=1:N_BAGGING,
-    FUN=function(x){
-      cat(".")
-      return(
-        merge_presences_absences_by_year(
-          wind_pts,
-          pseudo_abs_pool,
-          years=2011:2014
-          )
-      )
-    }
   )
-cat("\n")
+
+# From 2010:2012, let's bag (sample with replacement) our input dataset
+training_chunks[[2]] <- rebag_timeseries(
+  wind_pts,
+  pseudo_abs_pool,
+  years=2011:2014
+)
 
 cat(" -- building evaluation dataset [2] (2015:2017)\n")
 

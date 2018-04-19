@@ -6,7 +6,7 @@
 # ' hidden function that will scrape a static faa.gov URL for digital obstruction zipfiles and
 # ' download the most recent zipfile.
 # @value returns the filename of the download FAA zipfile
-web_scrape_faa_digital_obstructions <- function(FAA_OBSTRUCTIONS="https://www.faa.gov/air_traffic/flight_info/aeronav/digital_products/dof/"){
+web_scrape_faa_digital_obstructions <- function(FAA_OBSTRUCTIONS="https://www.faa.gov/air_traffic/flight_info/aeronav/digital_products/dof/", write=T){
   download.file(FAA_OBSTRUCTIONS, destfile="index.html", quiet=T)
   # parse lines for zipfile path
   lines <- readLines("index.html")
@@ -29,10 +29,35 @@ web_scrape_faa_digital_obstructions <- function(FAA_OBSTRUCTIONS="https://www.fa
   # parse a filename from our full download URL
   file <- strsplit(urls,split="/")[[1]]
   file <- file[length(file)] # filename is the last element in the vector
-  # download the file
-  download.file(urls, destfile=file, quiet=T)
+  # clean-up our original index.html file
+  file.remove("index.html")
+  # should we download the file?
+  if(write){
+    # download the file
+    download.file(urls, destfile=file, quiet=T)
+  }
   # return the file path to the user
   return(file)
+}
+#' check to see if the proposed zip file is the most recent
+check_fetch_most_recent_obstruction_file <- function(dir=".", proposed_zip=NULL){
+  # grab the date strings for our existing zip files
+  existing_zips <- list.files(dir, pattern="^DOF.*.[.]zip$")
+  dates <- as.numeric(na.omit(suppressWarnings(
+    as.numeric(unlist(strsplit(unlist(strsplit(existing_zips,split="[.]")),
+    split="_")))
+  )))
+  # parse the date string for our proposed zipfile
+  proposed <- as.numeric(na.omit(suppressWarnings(
+    as.numeric(unlist(strsplit(unlist(strsplit(proposed_zip,split="[.]")),
+    split="_")))
+  )))
+  # is our proposed zip's date greater-than any existing dates?
+  if( sum(proposed <= dates) == 0) {
+    return(TRUE)
+  } else {
+    return(FALSE)
+  }
 }
 # ' hidden function that will unpack an FAA zipfile and return as SpatialPointsDataFrame to the user.
 # '

@@ -12,7 +12,7 @@ generate_uniform_grid <- function(boundary=NULL, cell_size=9397.127){
   # define our CRS to whatever the boundary object uses
   raster::projection(grid) <- raster::projection(boundary)
   # mask out units outside of our boundary
-  grid <- rgeos::gBuffer(grid, width=cell_size, capStyle='square', byid=T)
+  grid <- rgeos::gBuffer(grid, width=cell_size/2, capStyle='square', byid=T)
   grid <- grid[ !is.na(sp::over(grid, boundary)[,1]) , ]
 
   return(grid)
@@ -20,6 +20,7 @@ generate_uniform_grid <- function(boundary=NULL, cell_size=9397.127){
 #'
 #'
 calc_attribute_turbines <- function(wind_pts=NULL, turbines_grid=NULL){
+   turbines_grid <- sp::spTransform(turbines_grid, sp::CRS(raster::projection(wind_pts)))
    # rows here correspond to each turbine grid unit
    turbines_grid$turbines <- apply(
      rgeos::gIntersects(wind_pts, turbines_grid, byid=T),

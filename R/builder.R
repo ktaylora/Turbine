@@ -104,6 +104,7 @@ load_explanatory_data <- function(path="."){
     }
     if( sum(grepl(ls(envir=model_fitting_data), pattern="final_stack")) > 0 ) {
       ret$explanatory_variables <- get("final_stack", envir=model_fitting_data)
+      names(ret$explanatory_variables) <- get("names", envir=model_fitting_data)
     }
     return(ret)
   }
@@ -111,10 +112,10 @@ load_explanatory_data <- function(path="."){
 #' fit a generalized additive model to a user-specified dataset using an optional functional specification
 #' @export
 fit_boosted_gam <- function(formula=NULL, training_data=NULL, vars=NULL, control=mboost::boost_control(center=T)){
-  if(is.null(vars)){
+  if (is.null(vars)) {
       vars <- unique(colnames(as.data.frame(training_data)))
   }
-  if(is.null(formula)){
+  if (is.null(formula)) {
       # if the user didn't specify a formula, we will use the default b-spline base learners from 'mboost'
       m <- mboost::gamboost(
         formula=as.factor(response)~.,
@@ -122,7 +123,7 @@ fit_boosted_gam <- function(formula=NULL, training_data=NULL, vars=NULL, control
         family=mboost::Binomial(),
         control = control,
       )
-  } else{
+  } else {
       m <- mboost::gamboost(
         formula=as.formula(formula),
         data=as.data.frame(training_data)[,vars],

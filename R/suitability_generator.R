@@ -9,17 +9,21 @@ min_max_normalize <- function(d) (exp(d) - min(exp(d)))/(max(exp(d)) - min(exp(d
 #' redistribution
 explanatory_vars_to_rdata_file <- function(rasters=NULL, filename=NULL, names=NULL){
   rasters <- try(raster::stack(rasters))
+  # if we can't make a raster stack from our input data, raise an error
   if(class(rasters) == "try-error"){
     stop("couldn't make a raster stack out of our input rasters -- are they spatially consistent?")
   }
-  if(is.null(names)) {
-    names <- names(rasters)
-  } else {
+  # did the user specify names for our raster stack?
+  if(!is.null(names)) {
     names(rasters) <- names
+  } else {
+    names <- names(rasters)
   }
+  # set a default filename for our r data file
   if(is.null(filename)){
     filename="explanatory_vars.rdata"
   }
+  # cache a copy of our stack to disk as a multi-band GeoTIFF
   raster::writeRaster(
       rasters,
       filename="explanatory_vars.tif",
@@ -27,9 +31,17 @@ explanatory_vars_to_rdata_file <- function(rasters=NULL, filename=NULL, names=NU
       overwrite=TRUE,
       progress='text'
   )
-  # re-read our input data and generate an rdata file
-  final_stack <- raster::stack("explanatory_vars.tif")
-  save(list="final_stack", file=filename, compress=T, compression_level=9)
+  # re-read our input data from the CWD and generate an rdata file for export
+  final_stack <- raster::stack("./explanatory_vars.tif")
+  if(file.exists(filename)){
+    r_data_envir <- new.env()
+    load(filename, envir=r_data_envir)
+    r_data_envir$final_stack <- final_stack
+    r_data_envir$names <- names
+    do.call("save", c(ls(envir = r_data_envir, list(envir = r_data_envir, file = filename))))
+  } else {
+    save(list=c("final_stack", "names"), file=filename, compress=T, compression_level=9)
+  }
 }
 #' function that will merge presences and absences SpatialPoints data.frame using a 'year' attribute
 #' @export

@@ -41,8 +41,10 @@ web_scrape_faa_digital_obstructions <- function(FAA_OBSTRUCTIONS="https://www.fa
 }
 #' check to see if the proposed zip file is the most recent
 check_fetch_most_recent_obstruction_file <- function(dir=".", proposed_zip=NULL){
-  # grab the date strings for our existing zip files
+  # do we even have existing zips to compare against? if not, fetch the most recent
   existing_zips <- list.files(dir, pattern="^DOF.*.[.]zip$")
+  if(length(existing_zips) == 0) return(TRUE)
+  # grab the date strings for our existing zip files
   dates <- as.numeric(na.omit(suppressWarnings(
     as.numeric(unlist(strsplit(unlist(strsplit(existing_zips,split="[.]")),
     split="_")))
@@ -104,10 +106,8 @@ unpack_faa_zip <- function(x,write=T){
         # YEAR
         year <- as.numeric(substr(ln[length(ln)-1],1,4))
         # return
-        if(i%%10==0){ cat(".") }
+        if(i%%100==0){ cat(".") }
         return(data.frame(x=westing,y=northing,year=year))
-        #coords <- rbind(coords,data.frame(x=westing,y=northing,year=year))
-        # if(i%%10==0){ cat(".") }
       }
   )); cat("\n");
   # re-format as a SpatialPointsDataFrame and return to user
@@ -117,6 +117,6 @@ unpack_faa_zip <- function(x,write=T){
     rgdal::writeOGR(pts,".",paste(unlist(strsplit(x,split="[.]"))[[1]],"_pts",sep=""),driver="ESRI Shapefile",overwrite=T)
   }
   # clean-up
-  unlink(list.files(pattern=".DAT$|.Dat$"))
+  file.remove(list.files(".", pattern=".DAT$|.Dat$|[.]exe$|[.]EXE$|[.]pdf$"))
   return(pts)
 }

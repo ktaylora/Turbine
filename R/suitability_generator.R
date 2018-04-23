@@ -36,11 +36,10 @@ explanatory_vars_to_rdata_file <- function(rasters=NULL, filename=NULL, n=NULL){
   if(file.exists(filename)){
     r_data_envir <- new.env()
     load(filename, envir=r_data_envir)
-    r_data_envir$final_stack <- final_stack
     r_data_envir$n <- n
-    save(list=c("final_stack", "n"), file=filename, compress=T, compression_level=9, envir=r_data_envir)
+    save(list=c("n"), file=filename, compress=T, compression_level=9, envir=r_data_envir)
   } else {
-    save(list=c("final_stack", "n"), file=filename, compress=T, compression_level=9)
+    save(list=c("n"), file=filename, compress=T, compression_level=9)
   }
 }
 #' function that will merge presences and absences SpatialPoints data.frame using a 'year' attribute

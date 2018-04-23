@@ -8,6 +8,9 @@
 #' function that will merge presences and absences SpatialPoints data.frame using a 'year' attribute
 #' @export
 merge_presences_absences_by_year <- function(presences=NULL, absences=NULL, years=NULL, bag=T){
+    if(is.null(years)){
+        years <- unique(presences@data[,1])
+    }
     presences  <- presences[presences$year %in% years, ]
     if(bag){
       presences <- presences[
@@ -82,8 +85,10 @@ load_explanatory_data <- function(path="."){
   model_fitting_data <- new.env()
   # are we a directory?
   if(dir.exists(path)){
+     dir <- path
     path <- list.files(path, pattern="[.]rdata$", full.names=T)
   } else if(file.exists(path)){
+     dir <- paste(dir[1:(length(dir)-1)], collapse="/")
     path <- path
   } else {
     stop("couldn't find or use any rdata files specified by path= argument")
@@ -103,7 +108,7 @@ load_explanatory_data <- function(path="."){
       ret$training_data <- get("wind_pts", envir=model_fitting_data)
     }
     if( sum(grepl(ls(envir=model_fitting_data), pattern="final_stack")) > 0 ) {
-      ret$explanatory_variables <- get("final_stack", envir=model_fitting_data)
+      ret$explanatory_variables <- raster::stack(paste(dir,"explanatory_vars.tif",sep="/"))
       names(ret$explanatory_variables) <- get("n", envir=model_fitting_data)
     }
     return(ret)

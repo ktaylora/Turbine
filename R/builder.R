@@ -146,7 +146,19 @@ fit_rf <- function(formula=NULL, training_data=NULL){
 }
 #' fit a maxent model to the input dataset
 #' @export
-fit_maxent <- function(formula=NULL, training_data=NULL){
-  return(NULL)
+#' training_data is only two columns: 1: longitude and 2: latitude, which correspond to the locations of turbines.
+#' predictor_stack is a stack of all the predictors from the study area that will be sampled by the maxent function to create absences.
+fit_maxent <- function(formula=NULL, training_data=NULL, predictor_stack=NULL){
+  # install and load dismo, the ecology maxent package
+  install.packages('dismo')
+  require(dismo)
+  # section on making sure java package is installed and the maxent.jar is in the right folder.
+  file.copy(
+  from=paste(paste(system.file(package="Turbine"), "data", sep="/"), "/maxent.jar", sep=""),
+  to=system.file("java", package="dismo", overwrite=T)
+  )
+  # Model fitting:
+  me <- maxent(x = predictor_stack, p = training_data, nbg = nrow(as.data.frame(training_data)), progress = 'text')
+  return(me)
 }
 

@@ -104,7 +104,7 @@ load_explanatory_data <- function(path="."){
     }
     if( sum(grepl(ls(envir=model_fitting_data), pattern="final_stack")) > 0 ) {
       ret$explanatory_variables <- get("final_stack", envir=model_fitting_data)
-      names(ret$explanatory_variables) <- get("names", envir=model_fitting_data)
+      names(ret$explanatory_variables) <- get("n", envir=model_fitting_data)
     }
     return(ret)
   }

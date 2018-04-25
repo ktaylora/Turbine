@@ -7,7 +7,9 @@
 
 # Default runtime options
 WORKSPACE_DIR = "/home/ktaylora/Workspace/turbine"
-
+DATE_STRING = tolower(paste(unlist(
+    strsplit(date, split=" "))[c(2,3,5)], collapse="_")
+  )
 # Load package defaults
 stopifnot(require(Turbine))
 
@@ -37,11 +39,13 @@ previous_suitability_raster <- list.files(
     full.names=T
   )
 if ( length(previous_suitability_raster) > 0 ){
+  year <- unlist(strsplit(date(), split=" "))
+  year <- as.numeric(year[length(year)])
   previous_suitability_raster <- raster::raster(previous_suitability_raster)
   wind_evaluation_pts <- Turbine:::merge_presences_absences_by_year(
     presences=wind_occurrence_pts, 
     absences=wind_absence_pts, 
-    years=2018,
+    years=year,
     bag=F
   ) 
 }
@@ -71,5 +75,9 @@ training_data <- cbind(
 # drop our lurking ID column if it exists
 training_data <- training_data[ ,!grepl(tolower(colnames(training_data)), pattern="id") ]
 # fit a boosted generalized additive model with b-splines
+m_gam <- Turbine:::fit_boosted_gam(training_data=training_data)
 # generate a 0-to-1 wind suitability raster surface and cache to disk
-
+predicted_suitability <- Turbine:::gen_suitability_raster(
+    explanatory_data=explanatory_data,
+    write=paste("predicted_suitability_", DATE_STRING, ".tif", sep="")
+  )

@@ -8,16 +8,16 @@
 # Default runtime options
 WORKSPACE_DIR = "/home/ktaylora/Workspace/turbine"
 DATE_STRING = tolower(paste(unlist(
-    strsplit(date, split=" "))[c(2,3,5)], collapse="_")
+    strsplit(date(), split=" "))[c(2,3,5)], collapse="_")
   )
+
 # Load package defaults
 stopifnot(require(Turbine))
-
-argv <- commandArgs(trailingOnly=T)
+setwd(WORKSPACE_DIR)
 
 # MAIN
+argv <- commandArgs(trailingOnly=T)
 
-setwd(WORKSPACE_DIR)
 # sanity check : do we have the most recent version of the FAA dataset?
 if ( !Turbine:::check_fetch_most_recent_obstruction_file(proposed_zip=Turbine:::web_scrape_faa_digital_obstructions(write=F)) ){
   print("001 : The proposed FAA download isnt newer than what we already have available.")
@@ -39,13 +39,13 @@ previous_suitability_raster <- list.files(
     full.names=T
   )
 if ( length(previous_suitability_raster) > 0 ){
-  year <- unlist(strsplit(date(), split=" "))
-  year <- as.numeric(year[length(year)])
+  YEAR <- unlist(strsplit(date(), split=" "))
+  YEAR <- as.numeric(YEAR[length(YEAR)])
   previous_suitability_raster <- raster::raster(previous_suitability_raster)
   wind_evaluation_pts <- Turbine:::merge_presences_absences_by_year(
     presences=wind_occurrence_pts, 
     absences=wind_absence_pts, 
-    years=year,
+    years=YEAR,
     bag=F
   ) 
 }

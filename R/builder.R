@@ -107,10 +107,8 @@ load_explanatory_data <- function(path="."){
     if ( sum(grepl(ls(envir=model_fitting_data), pattern="wind_pts")) > 0 ){
       ret$training_data <- get("wind_pts", envir=model_fitting_data)
     }
-    if( sum(grepl(ls(envir=model_fitting_data), pattern="final_stack")) > 0 ) {
-      ret$explanatory_variables <- raster::stack(paste(dir,"explanatory_vars.tif",sep="/"))
-      names(ret$explanatory_variables) <- get("n", envir=model_fitting_data)
-    }
+    ret$explanatory_variables <- raster::stack(paste(dir,"explanatory_vars.tif",sep="/"))
+    names(ret$explanatory_variables) <- get("n", envir=model_fitting_data)
     return(ret)
   }
 }

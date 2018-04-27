@@ -1,6 +1,6 @@
 #!/usr/bin/env R
 # Title     : Unix Shell Workflow Interface for 'Turbine'
-# Objective : A BASH scriptable interface for 'Turbine' that allows a user to dynamically update and 
+# Objective : A BASH scriptable interface for 'Turbine' that allows a user to dynamically update and
 # evaluate model predictions using the lastest release of the FAA digital obstruction dataset
 # Created by: Kyle Taylor (kyle.taylor@pljv.org)
 # Created on: 4/19/18
@@ -26,16 +26,23 @@ if ( !Turbine:::check_fetch_most_recent_obstruction_file(proposed_zip=Turbine:::
 # download and read-in the most recent FAA dataset
 wind_occurrence_pts <- Turbine:::web_scrape_faa_digital_obstructions()
 wind_occurrence_pts <- Turbine:::unpack_faa_zip(wind_occurrence_pts)
+
+boundary <- sp::spTransform(rgdal::readOGR(
+  "/gis_data/PLJV/","PLJV_Boundary", verbose=F), sp::CRS(raster::projection(wind_occurrence_pts)
+))
+
+wind_occurrence_pts <- wind_occurrence_pts[ !is.na(
+  sp::over(wind_occurrence_pts, boundary))[,1], ]
 # generate our pseudo-absences and merge with out input occurrence points
 wind_absence_pts <- Turbine:::gen_pseudo_absences(
-    pts=wind_occurrence_pts, 
+    pts=wind_occurrence_pts,
     boundary=rgdal::readOGR("/gis_data/PLJV/","PLJV_Boundary", verbose=F)
   )
-# if we have an existing product to work with, let's build an evaluation dataset from new turbines 
+# if we have an existing product to work with, let's build an evaluation dataset from new turbines
 # and let's see how well our last raster prediction does on predicting 'occurrence' of the current dataset
 previous_suitability_raster <- list.files(
-    WORKSPACE_DIR, 
-    pattern="gam_prediction[.]", 
+    WORKSPACE_DIR,
+    pattern="predicted_suitability_[.]",
     full.names=T
   )
 if ( length(previous_suitability_raster) > 0 ){
@@ -43,34 +50,34 @@ if ( length(previous_suitability_raster) > 0 ){
   YEAR <- as.numeric(YEAR[length(YEAR)])
   previous_suitability_raster <- raster::raster(previous_suitability_raster)
   wind_evaluation_pts <- Turbine:::merge_presences_absences_by_year(
-    presences=wind_occurrence_pts, 
-    absences=wind_absence_pts, 
+    presences=wind_occurrence_pts,
+    absences=wind_absence_pts,
     years=YEAR,
     bag=F
-  ) 
+  )
 }
 wind_training_pts <- Turbine:::merge_presences_absences_by_year(
-    presences=wind_occurrence_pts, 
-    absences=wind_absence_pts, 
+    presences=wind_occurrence_pts,
+    absences=wind_absence_pts,
     bag=F
   )
 # read-in our previously built raster explanatory data
 explanatory_data <- Turbine:::load_explanatory_data()$explanatory_variables
-# extract across our predictor dataset  
+# extract across our predictor dataset
 wind_training_pts <- sp::spTransform(
-    wind_training_pts, 
+    wind_training_pts,
     sp::CRS(raster::projection(explanatory_data))
   )
 training_data <- raster::extract(
     explanatory_data,
-    wind_training_pts, 
+    wind_training_pts,
     df=T,
     na.rm=T
   )
-# merge our categorical "response" variable into the training data table 
+# merge our categorical "response" variable into the training data table
 training_data <- cbind(
-    training_data, 
-    response=wind_training_data$response
+    training_data,
+    response=wind_training_pts$response
   )
 # drop our lurking ID column if it exists
 training_data <- training_data[ ,!grepl(tolower(colnames(training_data)), pattern="id") ]
@@ -78,6 +85,8 @@ training_data <- training_data[ ,!grepl(tolower(colnames(training_data)), patter
 m_gam <- Turbine:::fit_boosted_gam(training_data=training_data)
 # generate a 0-to-1 wind suitability raster surface and cache to disk
 predicted_suitability <- Turbine:::gen_suitability_raster(
-    explanatory_data=explanatory_data,
+    m=m_gam,
+    explanatory_vars=explanatory_data,
     write=paste("predicted_suitability_", DATE_STRING, ".tif", sep="")
   )
+

@@ -4,7 +4,12 @@
 # Created on: 4/19/18
 
 #' hidden function that will perform a min-max normalization on an input raster to ensure it is projected as 0-to-1
-min_max_normalize <- function(d) (exp(d) - min(exp(d)))/(max(exp(d)) - min(exp(d)))
+min_max_normalize <- function(d) {
+  d <- exp(d)
+  min <- raster::cellStats(d, stat=min)
+  max <- raster::cellStats(d, stat=max)
+  return( ( d - min ) / ( max - min) )
+}
 #' generate a spatially-consistent stack of explanatory variables and cache the results to disk for
 #' redistribution
 explanatory_vars_to_rdata_file <- function(rasters=NULL, filename=NULL, n=NULL){
@@ -44,19 +49,54 @@ explanatory_vars_to_rdata_file <- function(rasters=NULL, filename=NULL, n=NULL){
 }
 #' function that will merge presences and absences SpatialPoints data.frame using a 'year' attribute
 #' @export
-gen_suitability_raster <- function(m=NULL, explanatory_vars=NULL, write=NULL, quietly=F, normalize=T){
+gen_suitability_raster <- function(m=NULL, explanatory_vars=NULL, write=NULL, quietly=F, normalize=T, n=NULL){
+  # split-up a large raster into chunks that we can process
+  # in parallel
+  stopifnot(require(SpaDES))
+  if(is.null(n)){
+    n <- parallel::detectCores()-1
+  }
+
+  cl <- parallel::makeCluster(n)
+  # hackish way of loading SpaDES package on our cluster
+  stopifnot(sum(unlist(parallel::clusterApply(cl, x=rep(1,n), fun=function(x){require(SpaDES)}))) == n)
+  # export our explanatory_vars
+  parallel::clusterExport(cl, varlist="explanatory_vars")
   # produce an integer-scaled raster surface
-  predicted <- round( raster::predict(
+  chunks <- parallel::parLapply(
+    cl=cl,
+    X=1:raster::nlayers(explanatory_vars),
+    fun=function(band){
+      band <- raster::subset(explanatory_vars, band)
+      return(splitRaster(band))
+  })
+  # clean-up our cluster
+  parallel::stopCluster(cl)
+  rm(cl)
+
+  band <- parallel::parLapply(
+    cl=cl,
+    X=chunks,
+    fun=function(chunk){
+
+      return(round( min_max_normalize( raster::predict(
+        object=chunk,
+        model=m,
+        type="response",
+        na.rm=T,
+        inf.rm=T,
+        progress=ifelse(quietly==F, 'text', NULL)
+      ) ) * 100 ))
+    }
+  )
+  predicted <- round( min_max_normalize( raster::predict(
     object=explanatory_vars,
     model=m,
     type="response",
     na.rm=T,
     inf.rm=T,
-    datatype='FLT4S',
     progress=ifelse(quietly==F, 'text', NULL)
-  ) * 100 )
-  # optionally re-scale a raster from 0-to-1
-  if(normalize) predicted <- round( min_max_normalize(predicted) * 100 )
+  ) ) * 100 )
   # write to disk?
   if(!is.null(write)){
     raster::writeRaster(

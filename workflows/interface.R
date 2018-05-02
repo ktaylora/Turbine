@@ -5,21 +5,15 @@
 # Created by: Kyle Taylor (kyle.taylor@pljv.org)
 # Created on: 4/19/18
 
-# Default runtime options
-WORKSPACE_DIR = "/home/ktaylora/Workspace/turbine"
-DATE_STRING = tolower(paste(unlist(
-    strsplit(date(), split=" "))[c(2,3,5)], collapse="_")
-  )
 
-# Load package defaults
-stopifnot(require(Turbine))
-setwd(WORKSPACE_DIR)
 
 # MAIN
 argv <- commandArgs(trailingOnly=T)
 
 # sanity check : do we have the most recent version of the FAA dataset?
-if ( !Turbine:::check_fetch_most_recent_obstruction_file(proposed_zip=Turbine:::web_scrape_faa_digital_obstructions(write=F)) ){
+if ( !Turbine:::check_fetch_most_recent_obstruction_file(
+        proposed_zip=Turbine:::web_scrape_faa_digital_obstructions(write=F)
+      )){
   print("001 : The proposed FAA download isnt newer than what we already have available.")
   stop("001 : The proposed FAA download isnt newer than what we already have available.")
 }
@@ -89,4 +83,5 @@ predicted_suitability <- Turbine:::gen_suitability_raster(
     explanatory_vars=explanatory_data,
     write=paste("predicted_suitability_", DATE_STRING, ".tif", sep="")
   )
+
 

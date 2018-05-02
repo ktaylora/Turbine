@@ -114,8 +114,13 @@ load_explanatory_data <- function(path="."){
 }
 #' fit a generalized additive model to a user-specified dataset using an optional functional specification
 #' @export
-fit_boosted_gam <- function(formula=NULL, training_data=NULL, vars=NULL, control=mboost::boost_control(center=T)){
-  require(mboost)
+fit_boosted_gam <- function(
+  formula=NULL, 
+  training_data=NULL, 
+  vars=NULL, 
+  control=mboost::boost_control(center=T)
+  ){
+  stopifnot(require(mboost))
   if (is.null(vars)) {
       vars <- unique(colnames(as.data.frame(training_data)))
   }

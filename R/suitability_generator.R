@@ -56,31 +56,51 @@ gen_suitability_raster <- function(m=NULL, explanatory_vars=NULL, write=NULL, qu
   if(is.null(n)){
     n <- parallel::detectCores()-1
   }
-
   cl <- parallel::makeCluster(n)
   # hackish way of loading SpaDES package on our cluster
-  stopifnot(sum(unlist(parallel::clusterApply(cl, x=rep(1,n), fun=function(x){require(SpaDES)}))) == n)
+  stopifnot(
+    sum(unlist(
+      parallel::clusterApply(
+	      cl,
+	      x=rep(1,n),
+	      fun=function(x){require(SpaDES)})
+	  )) == n
+  )
+  # how many bands are we working with?
+  bands <- raster::nlayers(explanatory_vars)
+  # grab the names of our raster variables
+  names <- names(explanatory_vars)
   # export our explanatory_vars
-  parallel::clusterExport(cl, varlist="explanatory_vars")
+  parallel::clusterExport(cl, varlist=c("explanatory_vars", "n", "bands"))
   # produce an integer-scaled raster surface
   chunks <- parallel::parLapply(
     cl=cl,
-    X=1:raster::nlayers(explanatory_vars),
+    X=1:bands,
     fun=function(band){
-      band <- raster::subset(explanatory_vars, band)
-      return(splitRaster(band))
+      explanatory_vars <- raster::subset(explanatory_vars, band)
+      return(splitRaster(explanatory_vars, nx=ceiling(sqrt(n)), ny=ceiling(sqrt(n))))
   })
   # clean-up our cluster
-  parallel::stopCluster(cl)
-  rm(cl)
-
-  band <- parallel::parLapply(
+  parallel::clusterApply(
+	cl,
+	x=rep(1,n),
+	fun=function(x){rm(explanatory_vars,n);require(raster);})
+  )
+  # export our chunks
+  parallel::clusterExport(cl, varlist=c("chunks","min_max_normalize","m","names"))
+  # parallelize our raster prediction
+  predicted_suitability <- parallel::parLapply(
     cl=cl,
-    X=chunks,
-    fun=function(chunk){
-
+    X=1:length(chunks[[1]]), # number of tiles per-chunk
+    fun=function(tile){
+      chunk <- 1:bands # number of bands
+      # get the focal tile across our bands (chunks)
+      chunks <- unlist(lapply(chunks[chunk], FUN=function(x){ x[[tile]]}))
+        chunks <- raster::stack(chunks)
+      names(chunks) <- names
+      # return the normalized output for the focal tile
       return(round( min_max_normalize( raster::predict(
-        object=chunk,
+        object=chunks,
         model=m,
         type="response",
         na.rm=T,
@@ -89,6 +109,10 @@ gen_suitability_raster <- function(m=NULL, explanatory_vars=NULL, write=NULL, qu
       ) ) * 100 ))
     }
   )
+  # clean-up our cluster
+  parallel::stopCluster(cl)
+  rm(cl)
+
   predicted <- round( min_max_normalize( raster::predict(
     object=explanatory_vars,
     model=m,

@@ -7,6 +7,7 @@ commonly deployed on unix systems (Linux / macOS)
 """
 
 import argparse
+import subprocess
 
 class RLauncher:
     """A batch class for finding an Rscript interface, installing an R package, and running R code from the commandline"""
@@ -43,6 +44,8 @@ class RLauncher:
     @src_path.setter
     def workspace_path(self, *args):
         """Set the full path to the R script we are going to run for this session"""
+
+
 
 
 if __name__ == "__main__":

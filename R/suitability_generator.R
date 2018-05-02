@@ -84,11 +84,11 @@ gen_suitability_raster <- function(m=NULL, explanatory_vars=NULL, write=NULL, qu
   parallel::clusterApply(
 	cl,
 	x=rep(1,n),
-	fun=function(x){rm(explanatory_vars,n);require(raster);})
+	fun=function(x){rm(explanatory_vars,n);require(raster);}
   )
   # export our chunks
   parallel::clusterExport(cl, varlist=c("chunks","min_max_normalize","m","names"))
-  # parallelize our raster prediction
+  # parallelize our raster prediction across our tiles
   predicted_suitability <- parallel::parLapply(
     cl=cl,
     X=1:length(chunks[[1]]), # number of tiles per-chunk
@@ -112,7 +112,8 @@ gen_suitability_raster <- function(m=NULL, explanatory_vars=NULL, write=NULL, qu
   # clean-up our cluster
   parallel::stopCluster(cl)
   rm(cl)
-
+  # mosaic our tiles together
+  # original implementation to drop
   predicted <- round( min_max_normalize( raster::predict(
     object=explanatory_vars,
     model=m,

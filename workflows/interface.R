@@ -5,12 +5,21 @@
 # Created by: Kyle Taylor (kyle.taylor@pljv.org)
 # Created on: 4/19/18
 
+# Default runtime options
+WORKSPACE_DIR = "/home/ktaylora/Workspace/turbine"
+DATE_STRING = tolower(paste(unlist(
+    strsplit(date(), split=" "))[c(2,3,5)], collapse="_")
+  )
 
+# Load package defaults
+stopifnot(require(Turbine))
+setwd(WORKSPACE_DIR)
 
 # MAIN
 argv <- commandArgs(trailingOnly=T)
 
 # sanity check : do we have the most recent version of the FAA dataset?
+# -- be noisy about it so that we can script this call from Python
 if ( !Turbine:::check_fetch_most_recent_obstruction_file(
         proposed_zip=Turbine:::web_scrape_faa_digital_obstructions(write=F)
       )){
@@ -20,11 +29,11 @@ if ( !Turbine:::check_fetch_most_recent_obstruction_file(
 # download and read-in the most recent FAA dataset
 wind_occurrence_pts <- Turbine:::web_scrape_faa_digital_obstructions()
 wind_occurrence_pts <- Turbine:::unpack_faa_zip(wind_occurrence_pts)
-
+# define our project region boundary
 boundary <- sp::spTransform(rgdal::readOGR(
   "/gis_data/PLJV/","PLJV_Boundary", verbose=F), sp::CRS(raster::projection(wind_occurrence_pts)
 ))
-
+# drop turbine locations outside of our project area
 wind_occurrence_pts <- wind_occurrence_pts[ !is.na(
   sp::over(wind_occurrence_pts, boundary))[,1], ]
 # generate our pseudo-absences and merge with out input occurrence points

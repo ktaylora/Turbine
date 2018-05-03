@@ -146,7 +146,20 @@ fit_boosted_gam <- function(
 #' fit a random forests model to the input dataset
 #' @export
 fit_rf <- function(formula=NULL, training_data=NULL){
-  return(NULL)
+  if(!require(randomForest)){
+    install.packages('randomForest', repos="https://cran.revolutionanalytics.com")
+    require(randomForest)
+  }
+  if(!is.null(formula)){
+      m <- randomForest::randomForest(
+        formula=as.formula(paste("as.factor(response)~", formula, sep="")),
+        data=training_data,
+        ntree=ceiling(nrow(training_data)/2)
+      )
+  } else {
+      m <- randomForest::randomForest(as.factor(response)~., data=training_data, ntree=ceiling(nrow(training_data)/2))
+  }
+  return(m)
 }
 #' fit a maxent model to the input dataset
 #' @export
@@ -154,15 +167,17 @@ fit_rf <- function(formula=NULL, training_data=NULL){
 #' predictor_stack is a stack of all the predictors from the study area that will be sampled by the maxent function to create absences.
 fit_maxent <- function(formula=NULL, training_data=NULL, predictor_stack=NULL){
   # install and load dismo, the ecology maxent package
-  install.packages('dismo')
-  require(dismo)
+  if(!require(dismo)){
+    install.packages('dismo', repos="https://cran.revolutionanalytics.com")
+    require(dismo)
+  }
   # section on making sure java package is installed and the maxent.jar is in the right folder.
   file.copy(
   from=paste(paste(system.file(package="Turbine"), "data", sep="/"), "/maxent.jar", sep=""),
   to=system.file("java", package="dismo", overwrite=T)
   )
   # Model fitting:
-  me <- maxent(x = predictor_stack, p = training_data, nbg = nrow(as.data.frame(training_data)), progress = 'text')
-  return(me)
+  m <- maxent(x = predictor_stack, p = training_data, nbg = nrow(as.data.frame(training_data)), progress = 'text')
+  return(m)
 }
 

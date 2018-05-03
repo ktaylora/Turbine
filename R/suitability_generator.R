@@ -49,9 +49,19 @@ explanatory_vars_to_rdata_file <- function(rasters=NULL, filename=NULL, n=NULL){
     save(list=c("n"), file=filename, compress=T, compression_level=9)
   }
 }
+#' function that will generate a suitability surface using a random forest model
+#' @export
+gen_rf_suitability_raster <- function(m=NULL, explanatory_vars=NULL, write=NULL, quietly=F, normalize=T){
+  return(round( min_max_normalize( raster::subset(raster::predict(
+        object=explanatory_vars,
+        model=m,
+        type="prob",
+        progress=ifelse(quietly==F, 'text', NULL)
+  ), select=2) ) * 100 ))
+}
 #' function that will merge presences and absences SpatialPoints data.frame using a 'year' attribute
 #' @export
-gen_suitability_raster <- function(m=NULL, explanatory_vars=NULL, write=NULL, quietly=F, normalize=T, n=NULL){
+gen_gam_suitability_raster <- function(m=NULL, explanatory_vars=NULL, write=NULL, quietly=F, normalize=T, n=NULL){
   # split-up a large raster into chunks that we can process
   # in parallel
   stopifnot(require(SpaDES))
@@ -97,21 +107,23 @@ gen_suitability_raster <- function(m=NULL, explanatory_vars=NULL, write=NULL, qu
 	cl,
 	x=rep(1,n),
 	fun=function(x){
-      rm(explanatory_vars, n)
+      rm(explanatory_vars, n);
+      gc();
+      raster::rasterOptions(maxmemory=0);
     }
   ); rm(ret);
   # export our chunks
   parallel::clusterExport(cl, varlist=c("chunks","min_max_normalize","m","names","quietly"))
-  # parallelize our raster prediction across our tiles
-  predicted_suitability <- parallel::parLapply(
+  # parallelize our raster prediction across our tiles (this crashes due to memory limitations)
+  system.time(predicted_suitability <- parallel::parLapply(
     cl=cl,
     X=1:length(chunks[[1]]), # number of tiles per-chunk
     fun=function(tile){
       chunk <- 1:bands # number of bands
       # get the focal tile across our bands (chunks)
-      chunks <- unlist(lapply(chunks[chunk], FUN=function(x){ x[[tile]]}))
-        chunks <- raster::stack(chunks)
-      names(chunks) <- names
+      chunks <<- unlist(lapply(chunks[chunk], FUN=function(x){ x[[tile]]}))
+        chunks <<- raster::stack(chunks)
+          names(chunks) <<- names
       # return the normalized output for the focal tile
       return(round( min_max_normalize( raster::predict(
         object=chunks,
@@ -122,11 +134,12 @@ gen_suitability_raster <- function(m=NULL, explanatory_vars=NULL, write=NULL, qu
         progress=ifelse(quietly==F, 'text', NULL)
       ) ) * 100 ))
     }
-  )
+  ))
   # clean-up our cluster
   parallel::stopCluster(cl)
   rm(cl)
   # mosaic our tiles together
+
   # original implementation to drop
   predicted <- round( min_max_normalize( raster::predict(
     object=explanatory_vars,

@@ -170,7 +170,8 @@ gen_gam_suitability_raster <- function(m=NULL, explanatory_vars=NULL, write=NULL
       datatype="INT1S",
       overwrite=T
     )
+  } else {
+    # return to user
+    return(predicted)
   }
-  # return to user
-  return(predicted)
 }

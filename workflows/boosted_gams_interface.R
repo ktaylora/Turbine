@@ -99,9 +99,10 @@ training_data <- training_data[ ,!grepl(tolower(colnames(training_data)), patter
 # fit a boosted generalized additive model with b-splines
 m_gam <- Turbine:::fit_boosted_gam(training_data=training_data)
 # generate a 0-to-1 wind suitability raster surface and cache to disk
-predicted_suitability <- Turbine:::gen_gam_suitability_raster(
+Turbine:::gen_gam_suitability_raster(
     m=m_gam,
     explanatory_vars=explanatory_data,
+    quietly=T,
     write=paste("predicted_suitability_", DATE_STRING, ".tif", sep="")
   )
 # return a positive result for our scripted interface

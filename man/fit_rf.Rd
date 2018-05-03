@@ -4,7 +4,7 @@
 \alias{fit_rf}
 \title{fit a random forests model to the input dataset}
 \usage{
-fit_rf(formula = NULL, training_data = NULL)
+fit_rf(training_data = NULL, max_trees = 2000)
 }
 \description{
 fit a random forests model to the input dataset

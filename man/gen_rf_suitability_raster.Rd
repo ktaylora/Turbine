@@ -5,7 +5,7 @@
 \title{function that will generate a suitability surface using a random forest model}
 \usage{
 gen_rf_suitability_raster(m = NULL, explanatory_vars = NULL, write = NULL,
-  quietly = F, normalize = T)
+  quietly = F)
 }
 \description{
 function that will generate a suitability surface using a random forest model

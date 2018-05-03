@@ -16,8 +16,8 @@ stopifnot(require(Turbine))
 setwd(WORKSPACE_DIR)
 
 # MAIN
+require(mboost)
 argv <- commandArgs(trailingOnly=T)
-
 # sanity check : do we have the most recent version of the FAA dataset?
 # -- be noisy about it so that we can script this call from Python
 if ( !Turbine:::check_fetch_most_recent_obstruction_file(

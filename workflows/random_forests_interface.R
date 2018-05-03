@@ -50,12 +50,13 @@ wind_absence_pts <- Turbine:::gen_pseudo_absences(
 # and let's see how well our last raster prediction does on predicting 'occurrence' of the current dataset
 previous_suitability_raster <- list.files(
     WORKSPACE_DIR,
-    pattern="predicted_suitability_[.]",
+    pattern="^predicted_suitability_[.]",
     full.names=T
   )
 if ( length(previous_suitability_raster) > 0 ){
   YEAR <- unlist(strsplit(date(), split=" "))
   YEAR <- as.numeric(YEAR[length(YEAR)])
+  previous_suitability_raster <- previous_suitability_raster[length(previous_suitability_raster)]
   previous_suitability_raster <- raster::raster(previous_suitability_raster)
   wind_evaluation_pts <- Turbine:::merge_presences_absences_by_year(
     presences=wind_occurrence_pts,
@@ -63,6 +64,12 @@ if ( length(previous_suitability_raster) > 0 ){
     years=YEAR,
     bag=F
   )
+  predicted <- as.numeric(raster::extract(
+    previous_suitability_raster, wind_evaluation_pts, df=F, sp=F) > 0.5
+  )
+
+  caret::confusionMatrix(predicted, as.numeric(wind_evaluation_pts$response), positive=1)
+
 }
 wind_training_pts <- Turbine:::merge_presences_absences_by_year(
     presences=wind_occurrence_pts,

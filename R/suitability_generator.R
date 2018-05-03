@@ -51,13 +51,25 @@ explanatory_vars_to_rdata_file <- function(rasters=NULL, filename=NULL, n=NULL){
 }
 #' function that will generate a suitability surface using a random forest model
 #' @export
-gen_rf_suitability_raster <- function(m=NULL, explanatory_vars=NULL, write=NULL, quietly=F, normalize=T){
-  return(round( min_max_normalize( raster::subset(raster::predict(
+gen_rf_suitability_raster <- function(m=NULL, explanatory_vars=NULL, write=NULL, quietly=F){
+  predicted <- round( min_max_normalize( raster::subset(raster::predict(
         object=explanatory_vars,
         model=m,
         type="prob",
         progress=ifelse(quietly==F, 'text', NULL)
-  ), select=2) ) * 100 ))
+  ), select=2) ) * 100 )
+  # write to disk?
+  if(!is.null(write)){
+    raster::writeRaster(
+      x=predicted,
+      filename=write,
+      format="GTiff",
+      datatype="INT1S",
+      overwrite=T
+    )
+  } else {
+    return(predicted)
+  }
 }
 #' function that will merge presences and absences SpatialPoints data.frame using a 'year' attribute
 #' @export

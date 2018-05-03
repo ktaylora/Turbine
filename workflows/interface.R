@@ -100,8 +100,12 @@ m_rf <- Turbine:::fit_rf(training_data=training_data)
 #     write=paste("predicted_suitability_", DATE_STRING, ".tif", sep="")
 #   )
 predicted_suitability <- Turbine:::gen_rf_suitability_raster(
-    m=m_gam,
+    m=m_rf,
     explanatory_vars=explanatory_data,
+    quietly=T,
     write=paste("predicted_suitability_", DATE_STRING, ".tif", sep="")
   )
+# return a positive result for our scripted interface
+cat("0\n");
+
 

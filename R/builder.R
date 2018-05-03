@@ -145,20 +145,24 @@ fit_boosted_gam <- function(
 }
 #' fit a random forests model to the input dataset
 #' @export
-fit_rf <- function(formula=NULL, training_data=NULL){
+fit_rf <- function(training_data=NULL, max_trees=2000){
+  training_data <- na.omit(training_data)
+
+  N_TREES <- which.min(c(max_trees, ceiling(nrow(training_data)/2)))
+
   if(!require(randomForest)){
     install.packages('randomForest', repos="https://cran.revolutionanalytics.com")
     require(randomForest)
   }
-  if(!is.null(formula)){
-      m <- randomForest::randomForest(
-        formula=as.formula(paste("as.factor(response)~", formula, sep="")),
-        data=training_data,
-        ntree=ceiling(nrow(training_data)/2)
-      )
-  } else {
-      m <- randomForest::randomForest(as.factor(response)~., data=training_data, ntree=ceiling(nrow(training_data)/2))
-  }
+
+  m <- randomForest::randomForest(
+    y=as.factor(training_data$response),
+    x=training_data[,!grepl(tolower(colnames(training_data)), pattern="response|id")],
+    data=training_data,
+    na.rm=T,
+    ntree=N_TREES
+  )
+
   return(m)
 }
 #' fit a maxent model to the input dataset

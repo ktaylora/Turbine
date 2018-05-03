@@ -2,7 +2,8 @@
 
 export(fit_boosted_gam)
 export(fit_rf)
+export(gen_gam_suitability_raster)
 export(gen_pseudo_absences)
-export(gen_suitability_raster)
+export(gen_rf_suitability_raster)
 export(load_explanatory_data)
 export(merge_presences_absences_by_year)

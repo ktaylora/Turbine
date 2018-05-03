@@ -3,6 +3,8 @@
 # Created by: Kyle Taylor (kyle.taylor@pljv.org)
 # Created on: 4/19/18
 
+TMP_PATH = "/tmp/r_raster_tmp" # make sure this path has a lot of free space available
+
 #' hidden function that will perform a min-max normalization on an input raster to ensure it is projected as 0-to-1
 min_max_normalize <- function(d) {
   d <- exp(d)
@@ -57,22 +59,32 @@ gen_suitability_raster <- function(m=NULL, explanatory_vars=NULL, write=NULL, qu
     n <- parallel::detectCores()-1
   }
   cl <- parallel::makeCluster(n)
-  # hackish way of loading SpaDES package on our cluster
-  stopifnot(
-    sum(unlist(
+  # hackish way of loading SpaDES package on our cluster and apportioning tmp files
+  parallel::clusterExport(cl, varlist=c("TMP_PATH"))
+  ret <- unlist(
       parallel::clusterApply(
 	      cl,
 	      x=rep(1,n),
-	      fun=function(x){require(SpaDES)})
-	  )) == n
-  )
+	      fun=function(x){
+            require(raster);
+            raster::rasterOptions(tmpdir=TMP_PATH);
+            require(SpaDES)
+            setPaths(
+              "/tmp/r_raster_tmp/cache",
+              "/tmp/r_raster_tmp/input",
+              "/tmp/r_raster_tmp/modules",
+              "/tmp/r_raster_tmp/output"
+            )
+          })
+  ); rm(ret);
   # how many bands are we working with?
   bands <- raster::nlayers(explanatory_vars)
   # grab the names of our raster variables
   names <- names(explanatory_vars)
   # export our explanatory_vars
   parallel::clusterExport(cl, varlist=c("explanatory_vars", "n", "bands"))
-  # produce an integer-scaled raster surface
+  # produce a chunked raster surface (this takes ~ 1 hour)
+  cat(" -- chunking our input dataset into tiles (takes ~ 1 hr)\n")
   chunks <- parallel::parLapply(
     cl=cl,
     X=1:bands,
@@ -80,14 +92,16 @@ gen_suitability_raster <- function(m=NULL, explanatory_vars=NULL, write=NULL, qu
       explanatory_vars <- raster::subset(explanatory_vars, band)
       return(splitRaster(explanatory_vars, nx=ceiling(sqrt(n)), ny=ceiling(sqrt(n))))
   })
-  # clean-up our cluster
-  parallel::clusterApply(
+  # clean-up our cluster in prep for our chunking operation
+  ret <- parallel::clusterApply(
 	cl,
 	x=rep(1,n),
-	fun=function(x){rm(explanatory_vars,n);require(raster);}
-  )
+	fun=function(x){
+      rm(explanatory_vars, n)
+    }
+  ); rm(ret);
   # export our chunks
-  parallel::clusterExport(cl, varlist=c("chunks","min_max_normalize","m","names"))
+  parallel::clusterExport(cl, varlist=c("chunks","min_max_normalize","m","names","quietly"))
   # parallelize our raster prediction across our tiles
   predicted_suitability <- parallel::parLapply(
     cl=cl,

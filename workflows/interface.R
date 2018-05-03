@@ -6,8 +6,9 @@
 # Created on: 4/19/18
 
 # Default runtime options
+TMP_PATH      = "/tmp/r_raster_tmp" # make sure this path has a lot of free space available
 WORKSPACE_DIR = "/home/ktaylora/Workspace/turbine"
-DATE_STRING = tolower(paste(unlist(
+DATE_STRING   = tolower(paste(unlist(
     strsplit(date(), split=" "))[c(2,3,5)], collapse="_")
   )
 
@@ -17,7 +18,11 @@ setwd(WORKSPACE_DIR)
 
 # MAIN
 require(mboost)
+require(raster)
+raster::rasterOptions(tmpdir=TMP_PATH)
+
 argv <- commandArgs(trailingOnly=T)
+
 # sanity check : do we have the most recent version of the FAA dataset?
 # -- be noisy about it so that we can script this call from Python
 if ( !Turbine:::check_fetch_most_recent_obstruction_file(

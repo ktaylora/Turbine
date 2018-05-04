@@ -12,8 +12,8 @@ import subprocess
 class RLauncher:
     """A batch class for finding an Rscript interface, installing an R package, and running R code from the commandline"""
 
-    def __init__(self, *args, **kwargs):
-        """Creates an 'R' launcher task with optional parameters specifying the path of our local Rscript binary
+    def __init__(self, *args):
+      """Creates an 'R' launcher task with optional parameters specifying the path of our local Rscript binary
       and the script and arguments we intend to run
 
       Optional arguments:

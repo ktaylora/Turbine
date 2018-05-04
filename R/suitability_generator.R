@@ -57,7 +57,7 @@ gen_rf_suitability_raster <- function(m=NULL, explanatory_vars=NULL, write=NULL,
         model=m,
         type="prob",
         progress=ifelse(quietly==F, 'text', NULL)
-  ), select=2) ) * 100 )
+  ), 2) ) * 100 )
   # write to disk?
   if(!is.null(write)){
     raster::writeRaster(
@@ -74,6 +74,8 @@ gen_rf_suitability_raster <- function(m=NULL, explanatory_vars=NULL, write=NULL,
 #' function that will merge presences and absences SpatialPoints data.frame using a 'year' attribute
 #' @export
 gen_gam_suitability_raster <- function(m=NULL, explanatory_vars=NULL, write=NULL, quietly=F, normalize=T, n=NULL){
+  # still in testing
+  warning("this function typically crashes on machines that don't have a lot of RAM")
   # split-up a large raster into chunks that we can process
   # in parallel
   stopifnot(require(SpaDES))
@@ -92,10 +94,10 @@ gen_gam_suitability_raster <- function(m=NULL, explanatory_vars=NULL, write=NULL
             raster::rasterOptions(tmpdir=TMP_PATH);
             require(SpaDES)
             setPaths(
-              "/tmp/r_raster_tmp/cache",
-              "/tmp/r_raster_tmp/input",
-              "/tmp/r_raster_tmp/modules",
-              "/tmp/r_raster_tmp/output"
+              paste(TMP_PATH, "/cache", sep=""),
+              paste(TMP_PATH, "/input", sep=""),
+              paste(TMP_PATH, "/modules", sep=""),
+              paste(TMP_PATH, "/output", sep="")
             )
           })
   ); rm(ret);
@@ -114,18 +116,22 @@ gen_gam_suitability_raster <- function(m=NULL, explanatory_vars=NULL, write=NULL
       explanatory_vars <- raster::subset(explanatory_vars, band)
       return(splitRaster(explanatory_vars, nx=ceiling(sqrt(n)), ny=ceiling(sqrt(n))))
   })
+  # clean-up our cluster
+  parallel::stopCluster(cl)
+  rm(cl)
+  # start from scratch -- be very conscious of RAM with our clustering here
+  cl <- parallel::makeCluster(ifelse(n>6, 6, n))
   # clean-up our cluster in prep for our chunking operation
   ret <- parallel::clusterApply(
 	cl,
 	x=rep(1,n),
 	fun=function(x){
-      rm(explanatory_vars, n);
-      gc();
-      raster::rasterOptions(maxmemory=0);
+      require(raster)
+      raster::rasterOptions(maxmemory=700);
     }
   ); rm(ret);
   # export our chunks
-  parallel::clusterExport(cl, varlist=c("chunks","min_max_normalize","m","names","quietly"))
+  parallel::clusterExport(cl, varlist=c("chunks","min_max_normalize","m","names","quietly", "bands"))
   # parallelize our raster prediction across our tiles (this crashes due to memory limitations)
   system.time(predicted_suitability <- parallel::parLapply(
     cl=cl,
@@ -174,4 +180,16 @@ gen_gam_suitability_raster <- function(m=NULL, explanatory_vars=NULL, write=NULL
     # return to user
     return(predicted)
   }
+}
+#' short-hand guassian smoother function to smooth out slivers --
+#' useful for feature extraction from a noisy raster surface (e.g.,
+#' from random forests)
+#' @export
+smooth <- function(r=NULL, smoothing_fun=mean, width=33, progress='text', ...){
+    return(raster::focal(
+        r,
+        w=raster::focalWeight(r, d=raster::res(r)[1]*width, type='Gauss'),
+        progress=progress,
+        fun=smoothing_fun
+    ))
 }

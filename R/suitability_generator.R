@@ -55,14 +55,13 @@ gen_rf_suitability_raster <- function(m=NULL, explanatory_vars=NULL, write=NULL)
   require(randomForest)
   # raster::predict will return the probability of the "absence" (0) class
   # we are inverting the logic here so that "presence" is 1-absence
-  p <- min_max_normalize( raster::predict(
+  p <- raster::predict(
         object=explanatory_vars,
         index=2,
         model=m,
         type="prob",
-        na.rm=T,
         progress='text'
-  ))
+  )
   p <- round( p * 100 )
   # write to disk?
   if(!is.null(write)){
@@ -93,9 +92,9 @@ gen_gam_suitability_raster <- function(m=NULL, explanatory_vars=NULL, write=NULL
   parallel::clusterExport(cl, varlist=c("TMP_PATH"))
   ret <- unlist(
       parallel::clusterApply(
-	      cl,
-	      x=rep(1,n),
-	      fun=function(x){
+          cl,
+          x=rep(1,n),
+          fun=function(x){
             require(raster);
             raster::rasterOptions(tmpdir=TMP_PATH);
             require(SpaDES)
@@ -126,37 +125,34 @@ gen_gam_suitability_raster <- function(m=NULL, explanatory_vars=NULL, write=NULL
   parallel::stopCluster(cl)
   rm(cl)
   # start from scratch -- be very conscious of RAM with our clustering here
-  cl <- parallel::makeCluster(ifelse(n>6, 6, n))
+  cl <- parallel::makeCluster(ifelse(n>9, 9, n))
   # clean-up our cluster in prep for our chunking operation
   ret <- parallel::clusterApply(
-	cl,
-	x=rep(1,n),
-	fun=function(x){
+    cl,
+    x=rep(1,n),
+    fun=function(x){
       require(raster)
-      raster::rasterOptions(maxmemory=700);
+      raster::rasterOptions(maxmemory=1200);
     }
   ); rm(ret);
   # export our chunks
-  parallel::clusterExport(cl, varlist=c("chunks","min_max_normalize","m","names","quietly", "bands"))
-  # parallelize our raster prediction across our tiles (this crashes due to memory limitations)
+  parallel::clusterExport(cl, varlist=c("chunks","min_max_normalize","m","names", "bands"))
+  # parallelize our raster prediction across our tiles (this takes ~9 hours)
   system.time(predicted_suitability <- parallel::parLapply(
     cl=cl,
     X=1:length(chunks[[1]]), # number of tiles per-chunk
     fun=function(tile){
       chunk <- 1:bands # number of bands
       # get the focal tile across our bands (chunks)
-      chunks <<- unlist(lapply(chunks[chunk], FUN=function(x){ x[[tile]]}))
-        chunks <<- raster::stack(chunks)
-          names(chunks) <<- names
+      chunks <- raster::stack(lapply(chunks, FUN=function(x){ return(x[[tile]]) }))
       # return the normalized output for the focal tile
-      return(round( min_max_normalize( raster::predict(
+      return(round(raster::predict(
         object=chunks,
         model=m,
         type="response",
         na.rm=T,
-        inf.rm=T,
-        progress=ifelse(quietly==F, 'text', NULL)
-      ) ) * 100 ))
+        inf.rm=T
+      )  * 100 ))
     }
   ))
   # clean-up our cluster
@@ -191,7 +187,7 @@ gen_gam_suitability_raster <- function(m=NULL, explanatory_vars=NULL, write=NULL
 #' useful for feature extraction from a noisy raster surface (e.g.,
 #' from random forests)
 #' @export
-smooth <- function(r=NULL, smoothing_fun=mean, width=33, progress='text', ...){
+smoother <- function(r=NULL, smoothing_fun=mean, width=33, progress='text', ...){
     return(raster::focal(
         r,
         w=raster::focalWeight(r, d=raster::res(r)[1]*width, type='Gauss'),

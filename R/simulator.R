@@ -7,11 +7,14 @@
 #' energy build-out and extracts 1.) total area of build-out and
 #' 2.) number of turbines associated with WITO projections
 scrape_turbine_buildout <- function(){
+    # this ridiculously long URL is an export of PLJV google sheet
     URL = paste("https://docs.google.com/spreadsheets/d/e/2PACX-1vT1k16zT14aPbe9l",
     "w2SFMKrwdnd83crKe8wsMoyvjb0YI8t0y7_nTJ7vd7IEFwHEZGkQv6YFX15-Ckd/pub?gid=0&si",
     "ngle=true&output=csv", sep="")
+    # fetch url to a local file
     unlink("fetch.csv", force=T)
     download.file(URL, destfile="fetch.csv", quiet=T)
+    # read-in as a CSV and re-format as something we can process
     t <- read.csv("fetch.csv", header=F)
     # the first element is the number of turbines built, the second
     # is the predicted total area of build-out

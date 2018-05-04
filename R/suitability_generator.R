@@ -39,7 +39,6 @@ explanatory_vars_to_rdata_file <- function(rasters=NULL, filename=NULL, n=NULL){
       progress='text'
   )
   # re-read our input data from the CWD and generate an rdata file for export
-  final_stack <- raster::stack("./explanatory_vars.tif")
   if(file.exists(filename)){
     r_data_envir <- new.env()
     load(filename, envir=r_data_envir)
@@ -51,24 +50,31 @@ explanatory_vars_to_rdata_file <- function(rasters=NULL, filename=NULL, n=NULL){
 }
 #' function that will generate a suitability surface using a random forest model
 #' @export
-gen_rf_suitability_raster <- function(m=NULL, explanatory_vars=NULL, write=NULL, quietly=F){
-  predicted <- round( min_max_normalize( raster::subset(raster::predict(
+gen_rf_suitability_raster <- function(m=NULL, explanatory_vars=NULL, write=NULL){
+  require(raster)
+  require(randomForest)
+  # raster::predict will return the probability of the "absence" (0) class
+  # we are inverting the logic here so that "presence" is 1-absence
+  p <- min_max_normalize( raster::predict(
         object=explanatory_vars,
+        index=2,
         model=m,
         type="prob",
-        progress=ifelse(quietly==F, 'text', NULL)
-  ), 2) ) * 100 )
+        na.rm=T,
+        progress='text'
+  ))
+  p <- round( p * 100 )
   # write to disk?
   if(!is.null(write)){
     raster::writeRaster(
-      x=predicted,
+      x=p,
       filename=write,
       format="GTiff",
       datatype="INT1S",
       overwrite=T
     )
   } else {
-    return(predicted)
+    return(p)
   }
 }
 #' function that will merge presences and absences SpatialPoints data.frame using a 'year' attribute

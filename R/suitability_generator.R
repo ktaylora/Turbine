@@ -1,9 +1,12 @@
 # Title     : 'Turbine' Suitability Generator
-# Objective : Use a user-specified fitted model to generate a continuous raster surface of wind suitability
+# Objective : Use a user-specified fitted model to generate a continuous raster
+# surface of wind suitability
 # Created by: Kyle Taylor (kyle.taylor@pljv.org)
 # Created on: 4/19/18
 
-TMP_PATH = "/tmp/r_raster_tmp" # make sure this path has a lot of free space available
+TMP_PATH <- "/tmp/r_raster_tmp" # make sure this path has a lot of hd space
+MAX_CPUS <- 6
+MAX_THREAD_RAM <- 800
 
 #' hidden function that will perform a min-max normalization on an input raster to ensure it is projected as 0-to-1
 min_max_normalize <- function(d) {
@@ -59,8 +62,7 @@ gen_rf_suitability_raster <- function(m=NULL, explanatory_vars=NULL, write=NULL)
         object=explanatory_vars,
         index=2,
         model=m,
-        type="prob",
-        progress='text'
+        type="prob"
   )
   p <- round( p * 100 )
   # write to disk?
@@ -125,24 +127,27 @@ gen_gam_suitability_raster <- function(m=NULL, explanatory_vars=NULL, write=NULL
   parallel::stopCluster(cl)
   rm(cl)
   # start from scratch -- be very conscious of RAM with our clustering here
-  cl <- parallel::makeCluster(ifelse(n>9, 9, n))
+  cl <- parallel::makeCluster(ifelse(n > MAX_CPUS, MAX_CPUS, n))
+  # export our chunks
+  parallel::clusterExport(
+    cl,
+    varlist=c("chunks", "m", "TMP_PATH", "MAX_THREAD_RAM")
+  )
   # clean-up our cluster in prep for our chunking operation
   ret <- parallel::clusterApply(
     cl,
     x=rep(1,n),
     fun=function(x){
       require(raster)
-      raster::rasterOptions(maxmemory=1200);
+      raster::rasterOptions(tmpdir=TMP_PATH, maxmemory=MAX_THREAD_RAM);
     }
   ); rm(ret);
-  # export our chunks
-  parallel::clusterExport(cl, varlist=c("chunks","min_max_normalize","m","names", "bands"))
-  # parallelize our raster prediction across our tiles (this takes ~9 hours)
+
+  # parallelize our raster prediction across our tiles (this takes ~17 hours)
   system.time(predicted_suitability <- parallel::parLapply(
     cl=cl,
     X=1:length(chunks[[1]]), # number of tiles per-chunk
     fun=function(tile){
-      chunk <- 1:bands # number of bands
       # get the focal tile across our bands (chunks)
       chunks <- raster::stack(lapply(chunks, FUN=function(x){ return(x[[tile]]) }))
       # return the normalized output for the focal tile
@@ -155,24 +160,15 @@ gen_gam_suitability_raster <- function(m=NULL, explanatory_vars=NULL, write=NULL
       )  * 100 ))
     }
   ))
+  # mosaic our tiles together
+  predicted_suitability <- do.call(raster::mosaic, predicted_suitability)
   # clean-up our cluster
   parallel::stopCluster(cl)
   rm(cl)
-  # mosaic our tiles together
-
-  # original implementation to drop
-  predicted <- round( min_max_normalize( raster::predict(
-    object=explanatory_vars,
-    model=m,
-    type="response",
-    na.rm=T,
-    inf.rm=T,
-    progress=ifelse(quietly==F, 'text', NULL)
-  ) ) * 100 )
   # write to disk?
   if(!is.null(write)){
     raster::writeRaster(
-      x=predicted,
+      x=predicted_suitability,
       filename=write,
       format="GTiff",
       datatype="INT1S",
@@ -180,7 +176,7 @@ gen_gam_suitability_raster <- function(m=NULL, explanatory_vars=NULL, write=NULL
     )
   } else {
     # return to user
-    return(predicted)
+    return(predicted_suitability)
   }
 }
 #' short-hand guassian smoother function to smooth out slivers --

@@ -2,10 +2,12 @@
 % Please edit documentation in R/builder.R
 \name{load_explanatory_data}
 \alias{load_explanatory_data}
-\title{load an input R data file containing a raster stack and (optionally) our input training data}
+\title{load an input R data file containing a raster stack and (optionally) our
+input training data}
 \usage{
 load_explanatory_data(path = ".")
 }
 \description{
-load an input R data file containing a raster stack and (optionally) our input training data
+load an input R data file containing a raster stack and (optionally) our
+input training data
 }

@@ -8,7 +8,7 @@ arbitrarily large (nrow(pts)*iter) with the intention that the dataset will
 be downsampled through a bagging procedure down-the-line.}
 \usage{
 gen_pseudo_absences(pts = NULL, boundary = NULL, iter = 5,
-  buffer_width = 1000)
+  buffer_width = 1000, quietly = T)
 }
 \description{
 generate a large pool of random pseudo-absences within a geographic boundary

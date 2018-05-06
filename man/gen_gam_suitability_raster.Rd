@@ -5,7 +5,8 @@
 \title{function that will merge presences and absences SpatialPoints data.frame using a 'year' attribute}
 \usage{
 gen_gam_suitability_raster(m = NULL, explanatory_vars = NULL,
-  write = NULL, quietly = F, normalize = T, n = NULL)
+  write = NULL, quietly = T, normalize = T, n = NULL,
+  TMP_PATH = "/tmp/r_raster_tmp", MAX_CPUS = 6, MAX_THREAD_RAM = 800)
 }
 \description{
 function that will merge presences and absences SpatialPoints data.frame using a 'year' attribute

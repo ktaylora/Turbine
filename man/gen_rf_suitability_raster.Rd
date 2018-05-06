@@ -4,8 +4,7 @@
 \alias{gen_rf_suitability_raster}
 \title{function that will generate a suitability surface using a random forest model}
 \usage{
-gen_rf_suitability_raster(m = NULL, explanatory_vars = NULL, write = NULL,
-  quietly = F)
+gen_rf_suitability_raster(m = NULL, explanatory_vars = NULL, write = NULL)
 }
 \description{
 function that will generate a suitability surface using a random forest model

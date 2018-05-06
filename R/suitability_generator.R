@@ -86,7 +86,7 @@ gen_gam_suitability_raster <- function(
   n=NULL,
   TMP_PATH="/tmp/r_raster_tmp",
   MAX_CPUS=6,
-  MAX_THREAD_RAM=800
+  MAX_THREAD_RAM=500 # units here are number of cells to hold in an array (mem)
 ){
   # split-up a large raster into chunks that we can process
   # in parallel

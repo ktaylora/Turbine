@@ -87,13 +87,11 @@ gen_gam_suitability_raster <- function(
   MAX_CPUS=6,
   MAX_THREAD_RAM=800
 ){
-  # still in testing
-  warning("this function typically crashes on machines that don't have a lot of RAM")
   # split-up a large raster into chunks that we can process
   # in parallel
   stopifnot(require(SpaDES))
   if(is.null(n)){
-    n <- parallel::detectCores()-1
+    n <- parallel::detectCores() - 1
   }
   cl <- parallel::makeCluster(n)
   # hackish way of loading SpaDES package on our cluster and apportioning tmp files
@@ -130,7 +128,11 @@ gen_gam_suitability_raster <- function(
     X=1:bands,
     fun=function(band){
       explanatory_vars <- raster::subset(explanatory_vars, band)
-      return(splitRaster(explanatory_vars, nx=ceiling(sqrt(n)), ny=ceiling(sqrt(n))))
+      return(splitRaster(
+        explanatory_vars,
+        nx=ceiling(sqrt(n)),
+        ny=ceiling(sqrt(n)))
+      )
   })
   # clean-up our cluster
   parallel::stopCluster(cl)
@@ -154,12 +156,14 @@ gen_gam_suitability_raster <- function(
   ); rm(ret);
 
   # parallelize our raster prediction across our tiles (this takes ~17 hours)
-  system.time(predicted_suitability <- parallel::parLapply(
+  predicted_suitability <- parallel::parLapply(
     cl=cl,
     X=1:length(chunks[[1]]), # number of tiles per-chunk
     fun=function(tile){
       # get the focal tile across our bands (chunks)
-      chunks <- raster::stack(lapply(chunks, FUN=function(x){ return(x[[tile]]) }))
+      chunks <- raster::stack(
+        lapply(chunks, FUN=function(x){ return(x[[tile]]) })
+      )
       # return the normalized output for the focal tile
       return(round(raster::predict(
         object=chunks,
@@ -169,9 +173,12 @@ gen_gam_suitability_raster <- function(
         inf.rm=T
       )  * 100 ))
     }
-  ))
+  )
   # mosaic our tiles together
-  predicted_suitability <- do.call(raster::mosaic, predicted_suitability)
+  predicted_suitability <- do.call(
+    raster::mosaic,
+    predicted_suitability
+  )
   # clean-up our cluster
   parallel::stopCluster(cl)
   rm(cl)
@@ -181,7 +188,7 @@ gen_gam_suitability_raster <- function(
       x=predicted_suitability,
       filename=write,
       format="GTiff",
-      datatype="INT1S",
+      datatype="INT1U",
       overwrite=T
     )
   } else {

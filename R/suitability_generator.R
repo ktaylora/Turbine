@@ -58,7 +58,8 @@ gen_rf_suitability_raster <- function(m=NULL, explanatory_vars=NULL, write=NULL)
         object=explanatory_vars,
         index=2,
         model=m,
-        type="prob"
+        type='prob',
+        datatype='FLT4S'
   )
   p <- round( p * 100 )
   # write to disk?
@@ -66,8 +67,8 @@ gen_rf_suitability_raster <- function(m=NULL, explanatory_vars=NULL, write=NULL)
     raster::writeRaster(
       x=p,
       filename=write,
-      format="GTiff",
-      datatype="INT1S",
+      format='GTiff',
+      datatype='INT1U',
       overwrite=T
     )
   } else {
@@ -89,7 +90,6 @@ gen_gam_suitability_raster <- function(
 ){
   # split-up a large raster into chunks that we can process
   # in parallel
-  stopifnot(require(SpaDES))
   if(is.null(n)){
     n <- parallel::detectCores() - 1
   }
@@ -101,8 +101,8 @@ gen_gam_suitability_raster <- function(
           cl,
           x=rep(1,n),
           fun=function(x){
-            require(raster);
-            require(SpaDES);
+            stopifnot(require(raster));
+            stopifnot(require(SpaDES));
             raster::rasterOptions(tmpdir=TMP_PATH);
             setPaths(
               paste(TMP_PATH, "/cache", sep=""),
@@ -168,9 +168,10 @@ gen_gam_suitability_raster <- function(
       return(round(raster::predict(
         object=chunks,
         model=m,
-        type="response",
+        type='response',
         na.rm=T,
-        inf.rm=T
+        inf.rm=T,
+        datatype='INT1U'
       )  * 100 ))
     }
   )
@@ -187,8 +188,8 @@ gen_gam_suitability_raster <- function(
     raster::writeRaster(
       x=predicted_suitability,
       filename=write,
-      format="GTiff",
-      datatype="INT1U",
+      format='GTiff',
+      datatype='INT1U',
       overwrite=T
     )
   } else {
@@ -200,10 +201,16 @@ gen_gam_suitability_raster <- function(
 #' useful for feature extraction from a noisy raster surface (e.g.,
 #' from random forests)
 #' @export
-smoother <- function(r=NULL, smoothing_fun=mean, width=33, progress='text', ...){
+smoother <- function(
+  r=NULL,
+  smoothing_fun=mean,
+  n_pixels=33,
+  progress=null,
+  ...
+){
     return(raster::focal(
         r,
-        w=raster::focalWeight(r, d=raster::res(r)[1]*width, type='Gauss'),
+        w=raster::focalWeight(r, d=raster::res(r)[1]*n_pixels, type='Gauss'),
         progress=progress,
         fun=smoothing_fun
     ))

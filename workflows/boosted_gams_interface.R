@@ -6,6 +6,9 @@
 # Created on: 4/19/18
 
 # Global runtime options
+
+options(warn = -1, error=traceback)
+
 TMP_PATH      = "/tmp/r_raster_tmp" # make sure this path has a lot of room
 WORKSPACE_DIR = "/home/ktaylora/Workspace/turbine"
 DATE_STRING   = tolower(paste(unlist(

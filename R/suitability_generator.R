@@ -4,15 +4,11 @@
 # Created by: Kyle Taylor (kyle.taylor@pljv.org)
 # Created on: 4/19/18
 
-TMP_PATH <- "/tmp/r_raster_tmp" # make sure this path has a lot of hd space
-MAX_CPUS <- 6
-MAX_THREAD_RAM <- 800
-
 #' hidden function that will perform a min-max normalization on an input raster to ensure it is projected as 0-to-1
 min_max_normalize <- function(d) {
   d <- exp(d)
-  min <- raster::cellStats(d, stat=min)
-  max <- raster::cellStats(d, stat=max)
+  min <- raster::cellStats(d, stat = min)
+  max <- raster::cellStats(d, stat = max)
   return( ( d - min ) / ( max - min) )
 }
 #' generate a spatially-consistent stack of explanatory variables and cache the results to disk for
@@ -80,7 +76,17 @@ gen_rf_suitability_raster <- function(m=NULL, explanatory_vars=NULL, write=NULL)
 }
 #' function that will merge presences and absences SpatialPoints data.frame using a 'year' attribute
 #' @export
-gen_gam_suitability_raster <- function(m=NULL, explanatory_vars=NULL, write=NULL, quietly=F, normalize=T, n=NULL){
+gen_gam_suitability_raster <- function(
+  m=NULL,
+  explanatory_vars=NULL,
+  write=NULL,
+  quietly=T,
+  normalize=T,
+  n=NULL,
+  TMP_PATH="/tmp/r_raster_tmp",
+  MAX_CPUS=6,
+  MAX_THREAD_RAM=800
+){
   # still in testing
   warning("this function typically crashes on machines that don't have a lot of RAM")
   # split-up a large raster into chunks that we can process
@@ -91,15 +97,15 @@ gen_gam_suitability_raster <- function(m=NULL, explanatory_vars=NULL, write=NULL
   }
   cl <- parallel::makeCluster(n)
   # hackish way of loading SpaDES package on our cluster and apportioning tmp files
-  parallel::clusterExport(cl, varlist=c("TMP_PATH"))
+  parallel::clusterExport(cl, varlist=c("TMP_PATH"), envir=environment())
   ret <- unlist(
       parallel::clusterApply(
           cl,
           x=rep(1,n),
           fun=function(x){
             require(raster);
+            require(SpaDES);
             raster::rasterOptions(tmpdir=TMP_PATH);
-            require(SpaDES)
             setPaths(
               paste(TMP_PATH, "/cache", sep=""),
               paste(TMP_PATH, "/input", sep=""),
@@ -113,9 +119,12 @@ gen_gam_suitability_raster <- function(m=NULL, explanatory_vars=NULL, write=NULL
   # grab the names of our raster variables
   names <- names(explanatory_vars)
   # export our explanatory_vars
-  parallel::clusterExport(cl, varlist=c("explanatory_vars", "n", "bands"))
+  parallel::clusterExport(
+    cl,
+    varlist=c("explanatory_vars", "n", "bands", envir=environment()),
+    envir=environment())
   # produce a chunked raster surface (this takes ~ 1 hour)
-  cat(" -- chunking our input dataset into tiles (takes ~ 1 hr)\n")
+  if(!quietly) cat(" -- chunking our input dataset into tiles (takes ~ 1 hr)\n")
   chunks <- parallel::parLapply(
     cl=cl,
     X=1:bands,
@@ -131,7 +140,8 @@ gen_gam_suitability_raster <- function(m=NULL, explanatory_vars=NULL, write=NULL
   # export our chunks
   parallel::clusterExport(
     cl,
-    varlist=c("chunks", "m", "TMP_PATH", "MAX_THREAD_RAM")
+    varlist=c("chunks", "m", "TMP_PATH", "MAX_THREAD_RAM"),
+    envir=environment()
   )
   # clean-up our cluster in prep for our chunking operation
   ret <- parallel::clusterApply(

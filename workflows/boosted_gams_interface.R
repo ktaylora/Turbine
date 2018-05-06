@@ -5,12 +5,13 @@
 # Created by: Kyle Taylor (kyle.taylor@pljv.org)
 # Created on: 4/19/18
 
-# Default runtime options
-TMP_PATH      = "/tmp/r_raster_tmp" # make sure this path has a lot of free space available
+# Global runtime options
+TMP_PATH      = "/tmp/r_raster_tmp" # make sure this path has a lot of room
 WORKSPACE_DIR = "/home/ktaylora/Workspace/turbine"
 DATE_STRING   = tolower(paste(unlist(
     strsplit(date(), split=" "))[c(2,3,5)], collapse="_")
   )
+QUIETLY       = T
 
 # Load package defaults
 stopifnot(require(Turbine))
@@ -56,7 +57,9 @@ previous_suitability_raster <- list.files(
 if ( length(previous_suitability_raster) > 0 ){
   YEAR <- unlist(strsplit(date(), split=" "))
   YEAR <- as.numeric(YEAR[length(YEAR)])
-  previous_suitability_raster <- previous_suitability_raster[length(previous_suitability_raster)]
+  previous_suitability_raster <- previous_suitability_raster[
+      length(previous_suitability_raster)
+    ]
   previous_suitability_raster <- raster::raster(previous_suitability_raster)
   wind_evaluation_pts <- Turbine:::merge_presences_absences_by_year(
     presences=wind_occurrence_pts,
@@ -107,5 +110,3 @@ Turbine:::gen_gam_suitability_raster(
   )
 # return a positive result for our scripted interface
 cat("0\n");
-
-

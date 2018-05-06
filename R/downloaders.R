@@ -66,13 +66,13 @@ check_fetch_most_recent_obstruction_file <- function(dir=".", proposed_zip=NULL)
 # @param x zipfile name containing FAA obstruction data
 # @param write optionally write SpatialPointsDataFrame to current working directory.
 # @value returns wind turbine data to the user as a SpatialPointsDataFrame
-unpack_faa_zip <- function(x,write=T){
+unpack_faa_zip <- function(x, quietly=T, write=T){
   unzip(x)
 
   t <- read.csv("DOF.DAT",t=" ",header=F,skip=4,stringsAsFactors=F)
   t <- t[apply(t,1,function(x) sum(grepl(x,pattern="WINDMILL"))) > 0,] # remove everything that doesn't a WINDMILL field somewhere
 
-  cat(" -- processing ", length(t), " turbine points:", sep="")
+  if(!quietly) cat(" -- processing ", length(t), " turbine points:", sep="")
 
   coords <- do.call(rbind, lapply(
       X=1:length(t),
@@ -106,15 +106,26 @@ unpack_faa_zip <- function(x,write=T){
         # YEAR
         year <- as.numeric(substr(ln[length(ln)-1],1,4))
         # return
-        if(i%%100==0){ cat(".") }
-        return(data.frame(x=westing,y=northing,year=year))
+        if(i%%100==0 && !quietly){ cat(".") }
+        return(data.frame(x=westing, y=northing, year=year))
       }
-  )); cat("\n");
-  # re-format as a SpatialPointsDataFrame and return to user
-  pts <- sp::SpatialPointsDataFrame(coords=data.frame(x=coords$x,y=coords$y),data=data.frame(year=coords$year))
-    raster::projection(pts) <- raster::projection("+init=epsg:4326")
+  ))
+  # flush the buffer with an endline if we are making noise
+  if(!quietly) { cat("\n"); }
+  # re-format as a SpatialPointsDataFrame (WGS84) and return to user
+  pts <- sp::SpatialPointsDataFrame(
+    coords=data.frame(x=coords$x,y=coords$y),
+    data=data.frame(year=coords$year)
+  )
+  raster::projection(pts) <- raster::projection("+init=epsg:4326")
   if(write){
-    rgdal::writeOGR(pts,".",paste(unlist(strsplit(x,split="[.]"))[[1]],"_pts",sep=""),driver="ESRI Shapefile",overwrite=T)
+    rgdal::writeOGR(
+      pts,
+      dsn=".",
+      layer=paste(unlist(strsplit(x,split="[.]"))[[1]],"_pts",sep=""),
+      driver="ESRI Shapefile",
+      overwrite=T
+    )
   }
   # clean-up
   file.remove(list.files(".", pattern=".DAT$|.Dat$|[.]exe$|[.]EXE$|[.]pdf$"))

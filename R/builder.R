@@ -34,7 +34,13 @@ merge_presences_absences_by_year <- function(presences=NULL, absences=NULL, year
 #' arbitrarily large (nrow(pts)*iter) with the intention that the dataset will
 #' be downsampled through a bagging procedure down-the-line.
 #' @export
-gen_pseudo_absences <- function(pts=NULL, boundary=NULL, iter=5, buffer_width=1000){
+gen_pseudo_absences <- function(
+  pts=NULL,
+  boundary=NULL,
+  iter=5,
+  buffer_width=1000,
+  quietly=T
+){
   # let's reproject our data to a planar geography for rgeos
   original_crs <- sp::CRS(raster::projection(pts))
   pts <- sp::spTransform(
@@ -49,7 +55,7 @@ gen_pseudo_absences <- function(pts=NULL, boundary=NULL, iter=5, buffer_width=10
   buffered_turbine_occurrences <- rgeos::gBuffer(
       pts, byid=T, width=buffer_width
     )
-  cat(" -- generating a large pool of pseudo-absences\n")
+  if(!quietly) cat(" -- generating a large pool of pseudo-absences\n")
   wind_pts_raster <- raster::raster(
       resolution=30,
       ext=raster::extent(boundary),
@@ -58,11 +64,11 @@ gen_pseudo_absences <- function(pts=NULL, boundary=NULL, iter=5, buffer_width=10
   # set our pool to zero
   raster::values(wind_pts_raster) <- 0
   # randomly generate a pool of pseudo-absences across n=iter steps
-  cat(" -- iteritively re-sampling absence space:")
+  if(!quietly) cat(" -- iteritively re-sampling absence space:")
   pseudo_absences <- do.call(sp::rbind.SpatialPointsDataFrame, lapply(
     X=1:iter,
     FUN=function(r){
-      cat(".")
+      if(!quietly) cat(".")
       absences <- raster::sampleRandom(
           wind_pts_raster,
           size=round(nrow(pts)*1.2),
@@ -74,12 +80,13 @@ gen_pseudo_absences <- function(pts=NULL, boundary=NULL, iter=5, buffer_width=10
       return(absences)
     }
   ))
-  cat("\n")
+  if(!quietly) cat("\n")
   pseudo_absences@data <- data.frame(response=rep(0, nrow(pseudo_absences)))
   # reproject back to our native CRS and return to user
   return(sp::spTransform(pseudo_absences, original_crs))
 }
-#' load an input R data file containing a raster stack and (optionally) our input training data
+#' load an input R data file containing a raster stack and (optionally) our
+#' input training data
 #' @export
 load_explanatory_data <- function(path="."){
   model_fitting_data <- new.env()
@@ -115,9 +122,9 @@ load_explanatory_data <- function(path="."){
 #' fit a generalized additive model to a user-specified dataset using an optional functional specification
 #' @export
 fit_boosted_gam <- function(
-  formula=NULL, 
-  training_data=NULL, 
-  vars=NULL, 
+  formula=NULL,
+  training_data=NULL,
+  vars=NULL,
   control=mboost::boost_control(center=T)
   ){
   stopifnot(require(mboost))
@@ -184,4 +191,3 @@ fit_maxent <- function(formula=NULL, training_data=NULL, predictor_stack=NULL){
   m <- maxent(x = predictor_stack, p = training_data, nbg = nrow(as.data.frame(training_data)), progress = 'text')
   return(m)
 }
-

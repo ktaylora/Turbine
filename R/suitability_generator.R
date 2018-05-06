@@ -95,7 +95,11 @@ gen_gam_suitability_raster <- function(
   }
   cl <- parallel::makeCluster(n)
   # hackish way of loading SpaDES package on our cluster and apportioning tmp files
-  parallel::clusterExport(cl, varlist=c("TMP_PATH"), envir=environment())
+  parallel::clusterExport(
+    cl,
+    varlist=c("TMP_PATH"),
+    envir=environment()
+  )
   ret <- unlist(
       parallel::clusterApply(
           cl,
@@ -119,8 +123,9 @@ gen_gam_suitability_raster <- function(
   # export our explanatory_vars
   parallel::clusterExport(
     cl,
-    varlist=c("explanatory_vars", "n", "bands", envir=environment()),
-    envir=environment())
+    varlist=c("explanatory_vars", "n", "bands"),
+    envir=environment()
+  )
   # produce a chunked raster surface (this takes ~ 1 hour)
   if(!quietly) cat(" -- chunking our input dataset into tiles (takes ~ 1 hr)\n")
   chunks <- parallel::parLapply(

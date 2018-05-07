@@ -6,7 +6,7 @@
 useful for feature extraction from a noisy raster surface (e.g.,
 from random forests)}
 \usage{
-smoother(r = NULL, smoothing_fun = mean, width = 33, progress = "text",
+smoother(r = NULL, smoothing_fun = mean, n_pixels = 33, progress = null,
   ...)
 }
 \description{

@@ -58,8 +58,7 @@ gen_rf_suitability_raster <- function(m=NULL, explanatory_vars=NULL, write=NULL)
         object=explanatory_vars,
         index=2,
         model=m,
-        type='prob',
-        datatype='FLT4S'
+        type='prob'
   )
   p <- round( p * 100 )
   # write to disk?
@@ -68,7 +67,6 @@ gen_rf_suitability_raster <- function(m=NULL, explanatory_vars=NULL, write=NULL)
       x=p,
       filename=write,
       format='GTiff',
-      datatype='INT1U',
       overwrite=T
     )
     return(p)
@@ -220,4 +218,30 @@ smoother <- function(
         progress=progress,
         fun=smoothing_fun
     ))
+}
+#' extract quantiles from a continuous raster surface as descrete spatial polygons
+extractDensities <- function(x, p=c(50,95), use_smoother=0){
+  q <- as.numeric(seq(min(p),max(p),5))
+  if(sum(as.character(p) %in% as.character(q)) != length(p))
+    stop("quantiles are typically extracted in 5 interval steps")
+  q <- as.numeric(q)[!as.numeric(q) %in% c(0,100)]
+  # use smoothing?
+  if (use_smoother > 0) {
+    for(i in 1:use_smoother){
+      smoothed <- smoother(x)
+    }
+  } else {
+    smoothed <- x
+  }
+  # figure-out quantile cut-off values to use for our extraction
+  h <- hist(smoothed, plot=F)
+    smoothed[smoothed<=h$mids[2]] <- NA
+      quantiles <- as.vector(quantile(smoothed,probs=q/100))
+  out <- list()
+  for(focal in p){
+    smoothed_focal <- smoothed>=quantiles[which(as.numeric(q) == as.numeric(focal))]
+      smoothed_focal <- raster::match(smoothed_focal,1,nomatch=NA)
+        out[[length(out)+1]] <- raster::rasterToPolygons(smoothed_focal);
+  }
+  return(out)
 }

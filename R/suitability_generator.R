@@ -57,8 +57,7 @@ gen_rf_suitability_raster <- function(
 ){
   require(raster)
   require(randomForest)
-  # raster::predict will return the probability of the "absence" (0) class
-  # we are inverting the logic here so that "presence" is 1-absence
+  # the index for prob. of occurrence should almost always == 2 (below)
   p <- predict(
     explanatory_vars,
     model=m,
@@ -80,7 +79,8 @@ gen_rf_suitability_raster <- function(
   }
   return(p)
 }
-#' function that will merge presences and absences SpatialPoints data.frame using a 'year' attribute
+#' generate a raster surface that is probability of occurrence for a fit
+#' GAM from the mboost package
 #' @export
 gen_gam_suitability_raster <- function(
   m=NULL,
@@ -89,6 +89,7 @@ gen_gam_suitability_raster <- function(
   quietly=T,
   normalize=T,
   n=NULL,
+  PRECISION=2,
   TMP_PATH="/tmp/r_raster_tmp",
   MAX_CPUS=6,
   MAX_THREAD_RAM=400 # units here are number of cells to hold in an array (mem)
@@ -175,14 +176,13 @@ gen_gam_suitability_raster <- function(
         lapply(chunks, FUN=function(x){ return(x[[tile]]) })
       )
       # return the normalized output for the focal tile
-      return(round(raster::predict(
-        object=chunks,
+      return(round(predict(
+        chunks,
         model=m,
         type='response',
         na.rm=T,
-        inf.rm=T,
-        datatype='INT1U'
-      )  * 100 ))
+        inf.rm=T
+      ), PRECISION ))
     }
   )
   # mosaic our tiles together
@@ -199,13 +199,11 @@ gen_gam_suitability_raster <- function(
       x=predicted_suitability,
       filename=write,
       format='GTiff',
-      datatype='INT1U',
       overwrite=T
     )
-  } else {
-    # return to user
-    return(predicted_suitability)
   }
+  # return to user
+  return(predicted_suitability)
 }
 #' short-hand guassian smoother function to smooth out slivers --
 #' useful for feature extraction from a noisy raster surface (e.g.,

@@ -1,4 +1,4 @@
-# !/usr/bin/env python3
+# !/usr/bin/env python2
 
 """A shell interface to the Turbine 'R' package
 
@@ -9,11 +9,36 @@ commonly deployed on unix systems (Linux / macOS)
 import argparse
 import subprocess
 
+from gee_asset_manager.batch_remover import delete
+from gee_asset_manager.batch_uploader import upload
+from gee_asset_manager.config import setup_logging
+
+class ee_ingest:
+    def __init__(self, *args):
+        try:
+            self._status = None
+            self._asset_id = args[0]
+            self._filename = args[1]
+        except Exception as e:
+            raise e
+        # call-out built-in method for our upload task
+        self.run_upload_task()
+
+    def run_upload_task(self, *args):
+        upload(user=args.user,
+            source_path=self._filename,
+            destination_path=self._asset_id,
+            metadata_path=None,
+            multipart_upload=None,
+            nodata_value=None,
+            bucket_name=None,
+            band_names=None)
+
 class RLauncher:
     def __init__(self, *args):
-        """Creates an 'R' launcher task with optional parameters specifying the\
-        path of our local Rscript binary and the script and arguments we intend to\
-        run
+        """Creates an 'R' launcher task with optional parameters specifying \
+        the path of our local Rscript binary and the script and arguments we \
+        intend to run
 
         Optional arguments:
         :param r_script_path: full path to the local Rscript binary
@@ -47,6 +72,7 @@ class RLauncher:
     def run(self):
         """ call Rscript on a user-specified script path and poll the run """
         pass
+
 
 if __name__ == "__main__":
     pass

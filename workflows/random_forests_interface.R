@@ -107,8 +107,6 @@ training_data <- cbind(
     training_data,
     response=wind_training_pts$response
   )
-# drop our lurking ID column if it exists
-training_data <- training_data[ ,!grepl(tolower(colnames(training_data)), pattern="id") ]
 # fit a random forest model
 m_rf <- Turbine:::fit_rf(training_data=training_data)
 # generate a 0-to-1 wind suitability raster surface and cache to disk
@@ -131,5 +129,3 @@ areas <- sapply(
 # attribute a build-out area that satisfies the total area requirement of our WITA projections
 # return a positive result for our scripted interface
 cat("0\n");
-
-

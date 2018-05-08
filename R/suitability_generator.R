@@ -60,7 +60,7 @@ gen_rf_suitability_raster <- function(m=NULL, explanatory_vars=NULL, write=NULL)
     type='prob',
     na.rm=T,
     inf.rm=T,
-    index=which(as.numeric(m_rf$classes) == 2)
+    index=which(as.numeric(m_rf$classes) == 2) # second class should be 'pres'
   )
   # write to disk?
   if(!is.null(write)){

@@ -49,18 +49,24 @@ explanatory_vars_to_rdata_file <- function(rasters=NULL, filename=NULL, n=NULL){
 }
 #' function that will generate a suitability surface using a random forest model
 #' @export
-gen_rf_suitability_raster <- function(m=NULL, explanatory_vars=NULL, write=NULL){
+gen_rf_suitability_raster <- function(
+  m=NULL,
+  explanatory_vars=NULL,
+  write=NULL,
+  quietly=T
+){
   require(raster)
   require(randomForest)
   # raster::predict will return the probability of the "absence" (0) class
   # we are inverting the logic here so that "presence" is 1-absence
   p <- predict(
-    explanatory_data,
+    explanatory_vars,
     model=m_rf,
     type='prob',
     na.rm=T,
     inf.rm=T,
-    index=which(as.numeric(m_rf$classes) == 2) # second class should be 'pres'
+    index=which(as.numeric(m_rf$classes) == 2), # second class should be 'pres'
+    progress=ifelse(!quietly, 'text', NULL)
   )
   # write to disk?
   if(!is.null(write)){
@@ -68,7 +74,8 @@ gen_rf_suitability_raster <- function(m=NULL, explanatory_vars=NULL, write=NULL)
       x=p,
       filename=write,
       format='GTiff',
-      overwrite=T
+      overwrite=T,
+      progress=ifelse(!quietly, 'text', NULL)
     )
   }
   return(p)

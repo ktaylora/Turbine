@@ -113,7 +113,8 @@ m_rf <- Turbine:::fit_rf(training_data=training_data)
 predicted <- Turbine:::gen_rf_suitability_raster(
     m=m_rf,
     explanatory_vars=explanatory_data,
-    write=paste("predicted_suitability_rf_", DATE_STRING, ".tif", sep="")
+    write=paste("predicted_suitability_rf_", DATE_STRING, ".tif", sep=""),
+    quietly=F
   )
 # three-pass gaussian filter to make for cleaner feature extraction
 # for our build-out simulation

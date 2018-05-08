@@ -234,7 +234,7 @@ extractDensities <- function(x, p=c(50,95), use_smoother=0){
   # use smoothing?
   if (use_smoother > 0) {
     for(i in 1:use_smoother){
-      smoothed <- smoother(x)
+      smoothed <- Turbine::smoother(x)
     }
   } else {
     smoothed <- x

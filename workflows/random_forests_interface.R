@@ -22,8 +22,6 @@ stopifnot(require(raster))
 
 raster::rasterOptions(tmpdir=TMP_PATH)
 
-argv <- commandArgs(trailingOnly=T)
-
 # sanity check : do we have the most recent version of the FAA dataset?
 # -- be noisy about it so that we can script this call from Python
 if ( !Turbine:::check_fetch_most_recent_obstruction_file(
@@ -59,9 +57,10 @@ wind_absence_pts <- Turbine:::gen_pseudo_absences(
 # and let's see how well our last raster prediction does on predicting 'occurrence' of the current dataset
 previous_suitability_raster <- list.files(
     WORKSPACE_DIR,
-    pattern="^predicted_suitability_[.]",
+    pattern="^predicted_suitability_",
     full.names=T
   )
+
 if ( length(previous_suitability_raster) > 0 ){
   YEAR <- unlist(strsplit(date(), split=" "))
   YEAR <- as.numeric(YEAR[length(YEAR)])
@@ -76,10 +75,15 @@ if ( length(previous_suitability_raster) > 0 ){
   predicted <- as.numeric(raster::extract(
     previous_suitability_raster, wind_evaluation_pts, df=F, sp=F) > 0.5
   )
-
-  caret::confusionMatrix(predicted, as.numeric(wind_evaluation_pts$response), positive=1)
-
+  # build a confusion matrix
+  keep <- !is.na(predicted)
+  evaluation_matrix <- caret::confusionMatrix(
+    as.factor(predicted[keep]),
+    as.factor(wind_evaluation_pts$response[keep]),
+    positive=as.character(1)
+  )
 }
+# build a training dataset of all of our points for model fitting
 wind_training_pts <- Turbine:::merge_presences_absences_by_year(
     presences=wind_occurrence_pts,
     absences=wind_absence_pts,

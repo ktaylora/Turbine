@@ -152,25 +152,31 @@ fit_boosted_gam <- function(
 }
 #' fit a random forests model to the input dataset
 #' @export
-fit_rf <- function(training_data=NULL, max_trees=2000){
-  training_data <- na.omit(training_data)
-
-  N_TREES <- which.min(c(max_trees, ceiling(nrow(training_data)/2)))
-
+fit_rf <- function(training_data=NULL, max_trees=1500, quietly=T){
   if(!require(randomForest)){
-    install.packages('randomForest', repos="https://cran.revolutionanalytics.com")
-    require(randomForest)
+    install.packages(
+      'randomForest',
+      repos="https://cran.revolutionanalytics.com"
+    )
+    stopifnot(require(randomForest))
   }
-
-  m <- randomForest::randomForest(
-    y=as.factor(training_data$response),
-    x=training_data[,!grepl(tolower(colnames(training_data)), pattern="response|id")],
-    data=training_data,
-    na.rm=T,
-    ntree=N_TREES
-  )
-
-  return(m)
+  # clean-up our training data.frame
+  training_data <- na.omit(training_data)
+  training_data <- training_data[ ,
+      !grepl(tolower(colnames(training_data)), pattern = "id")
+    ]
+  # determine a sane parameterization for fitting our forest
+  N_TREES <- min(c(max_trees, ceiling(nrow(training_data) / 2)))
+  # fit and return to user
+  return(randomForest::randomForest(
+    formula = as.factor(training_data$response)~.,
+    data = training_data,
+    na.rm = T,
+    inf.rm = T,
+    importance = T,
+    do.trace = ifelse(!quietly, TRUE, FALSE),
+    ntree = N_TREES
+  ))
 }
 #' fit a maxent model to the input dataset
 #' @export

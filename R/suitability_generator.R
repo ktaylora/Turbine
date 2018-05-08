@@ -54,13 +54,14 @@ gen_rf_suitability_raster <- function(m=NULL, explanatory_vars=NULL, write=NULL)
   require(randomForest)
   # raster::predict will return the probability of the "absence" (0) class
   # we are inverting the logic here so that "presence" is 1-absence
-  p <- raster::predict(
-        object=explanatory_vars,
-        index=2,
-        model=m,
-        type='prob'
+  p <- predict(
+    explanatory_data,
+    model=m_rf,
+    type='prob',
+    na.rm=T,
+    inf.rm=T,
+    index=which(as.numeric(m_rf$classes) == 2)
   )
-  p <- round( p * 100 )
   # write to disk?
   if(!is.null(write)){
     raster::writeRaster(
@@ -69,10 +70,8 @@ gen_rf_suitability_raster <- function(m=NULL, explanatory_vars=NULL, write=NULL)
       format='GTiff',
       overwrite=T
     )
-    return(p)
-  } else {
-    return(p)
   }
+  return(p)
 }
 #' function that will merge presences and absences SpatialPoints data.frame using a 'year' attribute
 #' @export
@@ -234,7 +233,7 @@ extractDensities <- function(x, p=c(50,95), use_smoother=0){
     smoothed <- x
   }
   # figure-out quantile cut-off values to use for our extraction
-  h <- hist(smoothed, plot=F)
+  h <- raster::hist(smoothed, plot=F)
     smoothed[smoothed<=h$mids[2]] <- NA
       quantiles <- as.vector(quantile(smoothed,probs=q/100))
   out <- list()

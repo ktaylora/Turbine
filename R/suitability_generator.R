@@ -61,11 +61,11 @@ gen_rf_suitability_raster <- function(
   # we are inverting the logic here so that "presence" is 1-absence
   p <- predict(
     explanatory_vars,
-    model=m_rf,
+    model=m,
     type='prob',
     na.rm=T,
     inf.rm=T,
-    index=which(as.numeric(m_rf$classes) == 2), # second class should be 'pres'
+    index=which(as.numeric(m$classes) == 1),
     progress=ifelse(!quietly, 'text', NULL)
   )
   # write to disk?

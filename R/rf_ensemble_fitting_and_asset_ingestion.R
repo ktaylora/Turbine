@@ -4,6 +4,13 @@
 # License : GPL v.3 (2019)
 #
 
+suppressMessages(require(sf))
+suppressMessages(require(rgdal))
+suppressMessages(require(raster))
+suppressMessages(require(pscl))
+suppressMessages(require(rjson))
+suppressMessages(require(RPostgreSQL))
+
 #
 # RUNTIME ARGUMENTS
 #
@@ -12,25 +19,32 @@
              DEBUGGING = T
 MAGNITUDE_OF_IMBALANCE = 2.5 # how many more zeros should we allow, relative to non-zeros?
     VARIANCE_THRESHOLD = 0.94    # to determine how many components to use for ZIP model
-               N_TREES = 400
+               N_TREES = 800
                SESSION = rjson::fromJSON(file="config.json")
                  TABLE = 'turbine_predicted_densities'
 
-suppressMessages(require(rgdal))
-suppressMessages(require(raster))
-suppressMessages(require(pscl))
-suppressMessages(require(rjson))
-
-cat(paste("\n## Turbine Wind Suitability Model (v.",VERSION,")\n\n",sep=""))
-
+# Database URI for PostGIS / Rgdal
 DSN = paste(
   "PG:dbname='", SESSION$database,
   "' host='", SESSION$host,
   "' user='", SESSION$user,
   "' password='", SESSION$password, 
-  "' port='5432'",
+  "' port='", SESSION$port, 
+  "'",
   sep=""
 )
+
+# Database configuration for tabular data
+connection <- RPostgreSQL::dbConnect(
+  dbDriver("PostgreSQL"), 
+  dbname = SESSION$database,
+  host = SESSION$host, 
+  port = SESSION$port,
+  user = SESSION$user, 
+  password = SESSION$password
+)
+
+cat(paste("\n## Turbine Wind Suitability Model (v.",VERSION,")\n\n",sep=""))
 
 #
 # LOCAL FUNCTIONS
@@ -81,14 +95,20 @@ units <- rgdal::readOGR(
   stringsAsFactors=F,
   verbose=F
 )
+
+training_data  <- RPostgreSQL::dbReadTable(
+    connection,
+    c("ktaylora","turbine_training_data")
+)
+
 # These data are MASSIVELY zero-inflated -- finding a wind farm
 # is a needle-in-a-haystack problem that is going to make fitting a
 # meaningful model difficult. Let's limit the zeros to
 # by randomly selecting zeros for modeling from the full extent of
 # the PLJV region.
-N_ZEROS_TO_USE     <- round(sum(units$t_count > 0)* MAGNITUDE_OF_IMBALANCE)
-N_ZEROS_TO_USE     <- sample(which(units$t_count == 0), size=N_ZEROS_TO_USE)
-N_NON_ZEROS_TO_USE <- which(units$t_count > 0)
+N_ZEROS_TO_USE     <- round(sum(training_data$t_count > 0)* MAGNITUDE_OF_IMBALANCE)
+N_ZEROS_TO_USE     <- sample(which(training_data$t_count == 0), size=N_ZEROS_TO_USE)
+N_NON_ZEROS_TO_USE <- which(training_data$t_count > 0)
 
 if(DEBUGGING) {
   cat(
@@ -100,7 +120,6 @@ if(DEBUGGING) {
   )
 }
 # center our explanatory data. Don't center our response data, though
-training_data  <- units@data
 turbine_counts <- as.numeric(as.vector(training_data[,'t_count']))
 # force numeric data type for every column
 if(DEBUGGING) cat("DEBUG: Forcing numeric values for input training data\n")
@@ -126,7 +145,7 @@ if(DEBUGGING) cat(
   "DEBUG: Needed ",
   PCA_MAX_COMPONENT_TO_USE,
   "components to capture",
-  VARIANCE_THRESHOLD,
+  VARIANCE_THRESHOLD*100,
   "% of the variance of the training data\n"
 )
 if(DEBUGGING) cat("DEBUG: Subseting our original units dataset to deal with zero-inflation\n")
@@ -161,7 +180,7 @@ m_rf_regression_pca_full <- randomForest::randomForest(
   as.numeric(t_count) ~ .,
   data=training_data_pca,
   do.trace=T,
-  ntree=N_TREES*2,
+  ntree=N_TREES, 
   importance=TRUE,
   replace=T,
   corr.bias=T
@@ -173,6 +192,7 @@ training_data_pca$t_count <- cut(
   include.lowest=T,
   labels=c(0,3,10)
 )
+
 m_rf_classifier_pca_full <- randomForest::randomForest(
   as.factor(t_count) ~ .,
   data=training_data_pca,
@@ -180,21 +200,27 @@ m_rf_classifier_pca_full <- randomForest::randomForest(
   ntree=N_TREES,
   importance=TRUE
 )
+
 training_data_pca$t_count <- as.numeric(turbine_counts[c(N_ZEROS_TO_USE, N_NON_ZEROS_TO_USE)])
+
 m_zip_pca_full <- zeroinfl(
   t_count ~ . | .,
   data= training_data_pca[,c(1:PCA_MAX_COMPONENT_TO_USE, ncol(training_data_pca))]
 )
+
 m_zip_pca_logit_intercept_only <- zeroinfl(
   t_count ~ . | +1,
   data= training_data_pca[,c(1:PCA_MAX_COMPONENT_TO_USE, ncol(training_data_pca))]
 )
+
 m_zip_pca_intercept_only <- update(m_zip_pca_full, . ~ 1)
+
 # zip model pseudo r-squared values
 r_squared <- round( (
   est_deviance(m_zip_pca_intercept_only) - est_deviance(m_zip_pca_full)
 ) / est_deviance(m_zip_pca_intercept_only) , 3)
 if(DEBUGGING) cat("DEBUG: ZIP PCA (Full Model) R-squared:",r_squared,"\n")
+
 # predict across the full PLJV region using competing  models
 if(DEBUGGING) cat("DEBUG: Predicting PCA model across the entire study region\n")
 turbine_density_map <- pscl:::predict.zeroinfl(
@@ -210,12 +236,11 @@ units_predicted@data <- data.frame(
 
 if(DEBUGGING) cat("DEBUG: writing ZIP prediction to database:", SESSION$database, "\n")
 
-writeOGR(
-  units_predicted,
-  dsn="local_project_data.gpkg",
-  layer=paste("turbine_predicted_densities_zip_v",VERSION,sep=""),
-  driver="GPKG",
-  overwrite=T
+sf::st_write(
+  as(units_predicted, "sf"),
+  "local_project_data.gpkg",
+  paste("turbine_predicted_densities_zip_v",VERSION,sep=""), 
+  update=T
 )
 
 turbine_density_map <- predict(
@@ -230,12 +255,12 @@ units_predicted@data <- data.frame(
 
 if(DEBUGGING) cat("DEBUG: writing RF prediction to Local Database\n")
 
-writeOGR(
-  units_predicted,
-  dsn="local_project_data.gpkg",
-  layer=paste("turbine_predicted_densities_rf_classifier_v",VERSION,sep=""),
-  driver="GPKG",
-  overwrite=T
+sf::st_write(
+  as(units_predicted, "sf"),
+  "local_project_data.gpkg",
+  paste("turbine_predicted_densities_rf_classifier_v",VERSION,sep=""), 
+  update=T,
+  OVERWRITE=T
 )
 
 rf_ensemble <- as.numeric(as.vector(turbine_density_map))
@@ -252,12 +277,11 @@ units_predicted@data <- data.frame(
 
 if(DEBUGGING) cat("DEBUG: writing RF prediction to disc as shapefile\n")
 
-writeOGR(
-  units_predicted,
-  dsn="local_project_data.gpkg",
-  layer=paste("turbine_predicted_densities_rf_regression_v",VERSION,sep=""),
-  driver="GPKG",
-  overwrite=T
+sf::st_write(
+  as(units_predicted, "sf"),
+  "local_project_data.gpkg",
+  paste("turbine_predicted_densities_rf_regression_v",VERSION,sep=""), 
+  update=T
 )
 
 if(DEBUGGING) cat("DEBUG: Building an RF prediction ensemble and commiting to SQL Server\n")
@@ -269,26 +293,26 @@ rf_ensemble <- rowMeans(
   )
 )
 
-units_predicted@data <- data.frame(
+result <- data.frame(
+  id=units$id,
   density=round(as.numeric(as.vector(rf_ensemble)))
 )
 
-result <- try(rgdal::writeOGR(
-  units_predicted,
-  dsn=DSN,
-  layer=paste("wind", TABLE, sep="."),
-  driver="PostgreSQL",
-  check_exists=F,
-  overwrite_layer=T,
-  delete_dsn=F
-))
-
-if( inherits(result, "try-error") ){
+if( !dbWriteTable(
+  connection, 
+  c("wind", "turbine_predicted_densities_rf_ensemble"), # note the goofy vector notation for schema/table
+  value = result, 
+  row.names = FALSE,
+  append=T
+) ) {
   warning(
     "DEBUG: failed writing to PostgreSQL database",
     SESSION$database,
-    TABLE
+    "turbine_predicted_densities_rf_ensemble"
   )
+} else {
+  dbDisconnect(connection);
+  rm(connection);
 }
 
 if(DEBUGGING) cat("DEBUG: Saving R workspace\n")

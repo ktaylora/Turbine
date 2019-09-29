@@ -3,6 +3,8 @@ Performs statistical downscaling (using a 'robust linear estimator') of wind dat
 can use to attribute wind data to the 1 KM US National Grid
 """
 
+import elevation
+
 # fetch our 30 meter NED raster data for project region extent
 # generate the usual suspects for topographic variables
 # use a bilinear interpolation to downscale our attributed NREL grid to our 30 meter NED grid

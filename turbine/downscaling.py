@@ -51,7 +51,7 @@ def get_ned_elevation_raster(extent, res=30, **kwargs):
 
 if __name__ == '__main__':
 
-    get_ned_elevation_raster(get_project_region_extent(), output='raster/elevation.tif', max_download_tiles=500)
+    get_ned_elevation_raster(get_project_region_extent(), output='raster/elevation.tif', res=250, max_download_tiles=500)
 
 # generate the usual suspects for topographic variables
 

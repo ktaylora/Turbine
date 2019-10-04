@@ -38,19 +38,20 @@ def get_ned_elevation_raster(extent, res=30, **kwargs):
     :param cache_dir: Root of the DEM cache folder.
     :param product: DEM product choice.
     """
+    PRODUCT = {'30':'srtm1','250':'srtm3'}
     logger.debug("Fetching NED raster data for project region extent")
     if os.path.exists(kwargs.get('outfile')):
         logger.warning("Warning : It looks like outfile="+kwargs.get('outfile')+" already exists... skipping.")
         return kwargs.get('outfile')
     else:
-        elevation.clip(bounds=extent, **kwargs)
+        elevation.clip(bounds=extent, product=PRODUCT[str(res)], **kwargs)
         elevation.clean()
         return kwargs.get('outfile')
 
 
 if __name__ == '__main__':
 
-    get_ned_elevation_raster(get_project_region_extent(), output='elevation.tif', max_download_tiles=500)
+    get_ned_elevation_raster(get_project_region_extent(), output='raster/elevation.tif', max_download_tiles=500)
 
 # generate the usual suspects for topographic variables
 

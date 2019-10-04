@@ -7,10 +7,18 @@ import logging
 
 logger = logging.getLogger(__name__)
 
+import sys
+import os
+
 import elevation
+import numpy as np
+
 from rasterstats import zonal_stats
 
-from beatbox import Vector
+from beatbox import Vector, Raster
+
+from beatbox.moving_windows import ndimage_filter
+from beatbox.raster import slope, aspect
 
 def get_project_region_extent(config_file='config.json', sql_options={'table_name':'mboggie.project_region_buffered_1km'}):
     """
@@ -23,21 +31,26 @@ def get_project_region_extent(config_file='config.json', sql_options={'table_nam
     project_region.crs = '+init=epsg:2163'
     return project_region.to_geodataframe().to_crs("+init=epsg:4326").geometry.total_bounds
 
-def get_ned_elevation_rasters(extent, res=30, **kwargs):
+def get_ned_elevation_raster(extent, res=30, **kwargs):
     """
-    Wrapper for elevation.clip that will generate a GeoTIFF file for a given extent.
+    Wrapper for elevation.clip that will generate a GeoTIFF file for a given project extent.
     :param output: Path to output file. Existing files will be overwritten.
     :param cache_dir: Root of the DEM cache folder.
     :param product: DEM product choice.
     """
     logger.debug("Fetching NED raster data for project region extent")
-    elevation.clip(bounds=extent, **kwargs)
-    elevation.clean()
+    if os.path.exists(kwargs.get('outfile')):
+        logger.warning("Warning : It looks like outfile="+kwargs.get('outfile')+" already exists... skipping.")
+        return kwargs.get('outfile')
+    else:
+        elevation.clip(bounds=extent, **kwargs)
+        elevation.clean()
+        return kwargs.get('outfile')
 
 
 if __name__ == '__main__':
-    
-    get_ned_elevation_rasters(get_project_region_extent(), output='elevation.tif', max_download_tiles=500)
+
+    get_ned_elevation_raster(get_project_region_extent(), output='elevation.tif', max_download_tiles=500)
 
 # generate the usual suspects for topographic variables
 

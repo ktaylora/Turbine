@@ -70,58 +70,59 @@ def get_ned_elevation_raster(extent, res=250, **kwargs):
 
 if __name__ == '__main__':
 
-  logger.debug('Checking for elevation (NED) products')
+    logger.debug('Checking for elevation (NED) products')
 
-  elev = 'raster/elevation.tif'
-  slp = 'raster/slope.tif'
-  asp = 'raster/aspect.tif'
-  tri_3 = 'raster/tri_3x3.tif'
-  tri_11 = 'raster/tri_11x11.tif'
+    elev = 'raster/elevation.tif'
+    slp = 'raster/slope.tif'
+    asp = 'raster/aspect.tif'
+    tri_3 = 'raster/tri_3x3.tif'
+    tri_11 = 'raster/tri_11x11.tif'
 
-  if not os.path.isfile(elev):
-    elev = get_ned_elevation_raster(get_project_region_extent(), output='elevation.tif', res=250, max_download_tiles=500)
-  
-  elev = Raster(elev, use_disc_caching=True)
+    if not os.path.isfile(elev):
+        elev = get_ned_elevation_raster(get_project_region_extent(), output='elevation.tif', res=250, max_download_tiles=500)
+        os.rename('elevation.tif', "raster/elevation.tif")
 
-  logger.debug('Generating slope / aspect / topographic roughness products')
+    elev = Raster(elev, use_disc_caching=True)
 
-  if not os.path.isfile(slp):
-    slp = slope(elev.array, use_disc_caching=True)
-    write_raster(slp.array, 'raster/slope.tif')
-  else:
-    slp = Raster(input=slp)
+    logger.debug('Generating slope / aspect / topographic roughness products')
 
-  if not os.path.isfile(asp):
-    asp = aspect(elev.array, use_disc_caching=True)
-    write_raster(asp.array, 'raster/aspect.tif')
-  else:
-    asp = Raster(input=asp)
+    if not os.path.isfile(slp):
+        slp = slope(elev.array, use_disc_caching=True)
+        write_raster(slp.array, 'raster/slope.tif')
+    else:
+        slp = Raster(input=slp)
 
-  if not os.path.isfile(tri_3):
-    tri_3 = ndimage_filter(
-        elev.array, 
-        use_disc_caching=True, 
-        function=np.std, 
-        size=3
-    )
-    write_raster(tri_3.array, 'raster/tri_3x3.tif')
-  else:
-    tri_3 = Raster(input=tri_3)
+    if not os.path.isfile(asp):
+        asp = aspect(elev.array, use_disc_caching=True)
+        write_raster(asp.array, 'raster/aspect.tif')
+    else:
+        asp = Raster(input=asp)
 
-  if not os.path.isfile(tri_11):
-    tri_11 = ndimage_filter(
-        elev.array, 
-        use_disc_caching=True, 
-        function=np.std, 
-        size=3
-    )
-    write_raster(tri_11.array, 'raster/tri_11x11.tif')
-  else:
-    tri_11 = Raster(input=tri_11)
+    if not os.path.isfile(tri_3):
+        tri_3 = ndimage_filter(
+            elev.array, 
+            use_disc_caching=True, 
+            function=np.std, 
+            size=3
+        )
+        write_raster(tri_3.array, 'raster/tri_3x3.tif')
+    else:
+        tri_3 = Raster(input=tri_3)
 
-# Fetch our NREL data from HSDS
-# use a bilinear interpolation to downscale our attributed NREL grid to our 30 meter NED grid
-# use a robust regression to estimate NREL station-level wind variable ~ f(bilinear interpolation + topographic variables)
-# write 30 meter downscaled raster surfaces to disc for review
-# aggregate mean + variance statistics of the downscaled grid to our US National grid units
-# write US National Grid units to PostGIS
+    if not os.path.isfile(tri_11):
+        tri_11 = ndimage_filter(
+            elev.array, 
+            use_disc_caching=True, 
+            function=np.std, 
+            size=3
+        )
+        write_raster(tri_11.array, 'raster/tri_11x11.tif')
+    else:
+        tri_11 = Raster(input=tri_11)
+
+    # Fetch our NREL data from HSDS
+    # use a bilinear interpolation to downscale our attributed NREL grid to our 30 meter NED grid
+    # use a robust regression to estimate NREL station-level wind variable ~ f(bilinear interpolation + topographic variables)
+    # write 30 meter downscaled raster surfaces to disc for review
+    # aggregate mean + variance statistics of the downscaled grid to our US National grid units
+    # write US National Grid units to PostGIS

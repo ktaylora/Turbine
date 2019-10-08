@@ -3,3 +3,6 @@
 .RData
 .idea
 config.json
+*.dat
+raster/*
+vector/*	

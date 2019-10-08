@@ -21,7 +21,7 @@ from rasterstats import zonal_stats
 from beatbox import Vector, Raster
 
 from beatbox.moving_windows import ndimage_filter
-from beatbox.raster import slope, aspect, NdArrayDiscCache, _NUMPY_TYPES
+from beatbox.raster import slope, aspect, NdArrayDiscCache
 
 def write_raster(array=None, filename=None, **kwargs):
     
@@ -32,7 +32,7 @@ def write_raster(array=None, filename=None, **kwargs):
     kwargs['count'] = kwargs.get('count', 1)
 
     try:
-        with rio.open(os.path.abspath(filename), 'w', **kwargs) as dst:
+        with rio.open(filename, 'w', **kwargs) as dst:
             dst.write(array, 1)
     except FileNotFoundError:
         raise FileNotFoundError('in filename= argument of write_raster()')
@@ -55,20 +55,26 @@ def get_ned_elevation_raster(extent, res=250, **kwargs):
     :param cache_dir: Root of the DEM cache folder.
     :param product: DEM product choice.
     """
-    PRODUCT = {'30':elevation.PRODUCTS[0],'250':elevation.PRODUCTS[1]}
+    
+    PRODUCT = {
+      '30':elevation.PRODUCTS[0],
+      '250':elevation.PRODUCTS[1]
+    }
+    
     logger.debug("Fetching NED raster data for project region extent")
-    if kwargs.get('outfile') is None:
-        raise AttributeError('outfile= argument is required by elevation.clip() and cannot be None')
-    if os.path.isfile(kwargs.get('outfile')):
-        logger.warning("Warning : It looks like outfile="+kwargs.get('outfile')+" already exists... skipping.")
-        return kwargs.get('outfile')
+    
+    if kwargs.get('output') is None:
+        raise AttributeError('output= argument is required by elevation.clip() and cannot be None')
+    if os.path.isfile(kwargs.get('output')):
+        logger.warning("Warning : It looks like output="+kwargs.get('output')+" already exists... skipping.")
+        
     else:
         elevation.clip(bounds=extent, product=PRODUCT[str(res)], **kwargs)
-        elevation.clean()
-        return kwargs.get('outfile')
+        elevation.clean()        
 
 
 if __name__ == '__main__':
+
 
     logger.debug('Checking for elevation (NED) products')
 
@@ -79,10 +85,10 @@ if __name__ == '__main__':
     tri_11 = 'raster/tri_11x11.tif'
 
     if not os.path.isfile(elev):
-        elev = get_ned_elevation_raster(get_project_region_extent(), output='elevation.tif', res=250, max_download_tiles=500)
-        os.rename('elevation.tif', "raster/elevation.tif")
+        get_ned_elevation_raster(get_project_region_extent(), output='elevation.tif', res=250, max_download_tiles=500)
+        os.rename(os.path.expanduser("~")+'.cache/elevation/SRTM3/elevation.tif', "raster/elevation.tif")
 
-    elev = Raster(elev, use_disc_caching=True)
+    elev = Raster(elev, use_disc_caching=False)
 
     logger.debug('Generating slope / aspect / topographic roughness products')
 
@@ -101,7 +107,7 @@ if __name__ == '__main__':
     if not os.path.isfile(tri_3):
         tri_3 = ndimage_filter(
             elev.array, 
-            use_disc_caching=True, 
+            use_disc_caching=False, 
             function=np.std, 
             size=3
         )
@@ -112,9 +118,9 @@ if __name__ == '__main__':
     if not os.path.isfile(tri_11):
         tri_11 = ndimage_filter(
             elev.array, 
-            use_disc_caching=True, 
+            use_disc_caching=False, 
             function=np.std, 
-            size=3
+            size=11
         )
         write_raster(tri_11.array, 'raster/tri_11x11.tif')
     else:

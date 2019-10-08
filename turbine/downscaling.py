@@ -55,22 +55,22 @@ def get_ned_elevation_raster(extent, res=250, **kwargs):
     :param cache_dir: Root of the DEM cache folder.
     :param product: DEM product choice.
     """
-    
+
     PRODUCT = {
       '30':elevation.PRODUCTS[0],
       '250':elevation.PRODUCTS[1]
     }
-    
+
     logger.debug("Fetching NED raster data for project region extent")
-    
+
     if kwargs.get('output') is None:
         raise AttributeError('output= argument is required by elevation.clip() and cannot be None')
     if os.path.isfile(kwargs.get('output')):
         logger.warning("Warning : It looks like output="+kwargs.get('output')+" already exists... skipping.")
-        
+
     else:
         elevation.clip(bounds=extent, product=PRODUCT[str(res)], **kwargs)
-        elevation.clean()        
+        elevation.clean()
 
 
 if __name__ == '__main__':
@@ -106,23 +106,23 @@ if __name__ == '__main__':
 
     if not os.path.isfile(tri_3):
         tri_3 = ndimage_filter(
-            elev.array, 
-            use_disc_caching=False, 
-            function=np.std, 
+            elev.array,
+            use_disc_caching=False,
+            function=np.std,
             size=3
         )
-        write_raster(tri_3.array, 'raster/tri_3x3.tif')
+        write_raster(tri_3, 'raster/tri_3x3.tif')
     else:
         tri_3 = Raster(input=tri_3)
 
     if not os.path.isfile(tri_11):
         tri_11 = ndimage_filter(
-            elev.array, 
-            use_disc_caching=False, 
-            function=np.std, 
+            elev.array,
+            use_disc_caching=False,
+            function=np.std,
             size=11
         )
-        write_raster(tri_11.array, 'raster/tri_11x11.tif')
+        write_raster(tri_11, 'raster/tri_11x11.tif')
     else:
         tri_11 = Raster(input=tri_11)
 

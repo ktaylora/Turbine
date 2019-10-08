@@ -87,7 +87,9 @@ def get_ned_elevation_raster(extent, res=250, **kwargs):
         elevation.clip(bounds=extent, product=PRODUCT[str(res)], **kwargs)
         elevation.clean()
 
+
 if __name__ == '__main__':
+
 
     logger.debug('Checking for elevation (NED) products')
 
@@ -106,13 +108,13 @@ if __name__ == '__main__':
     logger.debug('Generating slope / aspect / topographic roughness products')
 
     if not os.path.isfile(slp):
-        slp = slope(np.ndarray.astype(elev.array,np.float), use_disc_caching=True)
+        slp = slope(elev.array, use_disc_caching=True)
         write_raster(slp.array, 'raster/slope.tif', template=elev)
     else:
         slp = Raster(input=slp)
 
     if not os.path.isfile(asp):
-        asp = aspect(np.ndarray.astype(elev.array,np.float), use_disc_caching=True)
+        asp = aspect(elev.array, use_disc_caching=True)
         write_raster(asp.array, 'raster/aspect.tif', template=elev)
     else:
         asp = Raster(input=asp)

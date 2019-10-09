@@ -9,11 +9,18 @@ import logging
 logger = logging.getLogger(__name__)
 
 from shapely.geometry import Point
-from geopandas import GeoSeries, GeoDataFrame, overlay
+from shapely.ops import cascaded_union
+
+from geopandas import GeoSeries, GeoDataFrame
 from pandas import DataFrame
 
 import gdal, ogr
 import h5pyd as h5
+
+import math
+
+_WIND_TOOLKIT_DEFAULT_EPSG = "+init=epsg:4326"
+_HOURS_PER_MONTH = 730
 
 _wind_toolkit_datasets = [
     "DIF",
@@ -79,24 +86,32 @@ def rasterize(shapefile_path=None, template=None, outfile=None, **kwargs):
     target_ds.FlushCache()
 
 
-def h5_to_geodataframe(dataset_name=None, filter_by_intersection=None):
+def h5_to_geodataframe(datasets=None, filter_by_intersection=None):
     """
-    Will parse NREL's Wind Toolkit 
+    Will parse NREL's Wind Toolkit as efficiently as possible and 
     """
     f = h5.File("/nrel/wtk-us.h5", 'r')
     
     logger.debug("Fetching coordinates from wind toolkit...")
+    n_rows, n_cols = f['coordinates'].shape
     coords = f['coordinates'][:].flatten()
 
-    target_rows = list(range(len(coords)))
+    i = list(range(len(coords)))
+    
+    target_rows_id = [ math.ceil(x/n_cols) for x in i ]
+    target_cols_id = [ math.ceil( n_cols * ( float(x/n_cols) - math.floor(x/n_cols) ) ) for x in i ]
 
     gdf = GeoDataFrame({
-        'geometry' : GeoSeries([Point(i) for i in coords]),
-        'id' : target_rows
+        'geometry' : GeoSeries([Point(reversed(i)) for i in coords]),
+        'id' : i,
+        'x' :  target_cols_id,
+        'y' : target_rows_id
     })
 
+    gdf.crs = _WIND_TOOLKIT_DEFAULT_EPSG
+
     if filter_by_intersection is not None:
-        target_rows = list(overlay(gdf, filter_by_intersection, how='intersection')['id'])
+        target_rows = list(gdf.loc[gdf.within(cascaded_union(filter_by_intersection))]['id'])
         if len(target_rows) is 0:
             raise AttributeError('filter_by_intersection= resulted in no intersecting geometries')
     
@@ -104,9 +119,9 @@ def h5_to_geodataframe(dataset_name=None, filter_by_intersection=None):
 
     logger.debug("Merging in our selected attributes")
 
-    for dataset in dataset_name:
+    for dataset in datasets:
         gdf = gdf.join(DataFrame({
-            dataset : f[dataset][:].flatten()[target_rows]
+            dataset : f[dataset][::_HOURS_PER_MONTH, gdf['y'], gdf['x']].flatten()
         }, index=target_rows))
 
     del f, coords

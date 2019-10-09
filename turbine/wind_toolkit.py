@@ -96,7 +96,7 @@ def h5_to_geodataframe(datasets=None, filter_by_intersection=None):
     n_rows, n_cols = f['coordinates'].shape
     coords = f['coordinates'][:].flatten()
 
-    i = list(range(len(coords)))
+    target_rows = i = list(range(len(coords)))
     
     target_rows_id = [ math.ceil(x/n_cols) for x in i ]
     target_cols_id = [ math.ceil( n_cols * ( float(x/n_cols) - math.floor(x/n_cols) ) ) for x in i ]

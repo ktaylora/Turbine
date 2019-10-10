@@ -21,6 +21,7 @@ import math
 
 _WIND_TOOLKIT_DEFAULT_EPSG = "+init=epsg:4326"
 _HOURS_PER_MONTH = 730
+_HSDS_CACHE_FILE_PATH = '/vector/h5_grid.shp'
 
 _wind_toolkit_datasets = [
     "DIF",
@@ -62,10 +63,8 @@ _wind_toolkit_datasets = [
     "windspeed_80m"
 ]
 
-def extent_to_bounding_box(extent=None):
-    ne = (1,1)
-    sw = (2,2)
-    return (ne, sw)
+def _bootstrap_gaussian_sample(n_samples=10, mean=0, sd=2):
+    pass
 
 def rasterize(shapefile_path=None, template=None, outfile=None, **kwargs):
     """
@@ -86,32 +85,39 @@ def rasterize(shapefile_path=None, template=None, outfile=None, **kwargs):
     target_ds.FlushCache()
 
 
-def h5_to_geodataframe(datasets=None, filter_by_intersection=None):
+def h5_grid_to_geodataframe(datasets=None, filter_by_intersection=None, cache_file=_HSDS_CACHE_FILE_PATH):
     """
     Will parse NREL's Wind Toolkit as efficiently as possible and 
     """
     f = h5.File("/nrel/wtk-us.h5", 'r')
     
-    logger.debug("Fetching coordinates from wind toolkit...")
-    n_rows, n_cols = f['coordinates'].shape
-    coords = f['coordinates'][:].flatten()
+    if os.path.exists(cache_file):
+        logger.debug("Using cached file for project region coordinates for the wind toolkit")
+        gdf = GeoDataFrame().from_file(cache_file)
 
-    target_rows = i = list(range(len(coords)))
+    else:
+
+        logger.debug("Fetching coordinates from wind toolkit HSDS interface")
+        n_rows, n_cols = f['coordinates'].shape
+        coords = f['coordinates'][:].flatten()
+
+        target_rows = i = list(range(len(coords)))
     
-    target_rows_id = [ math.ceil(x/n_cols) for x in i ]
-    target_cols_id = [ math.ceil( n_cols * ( float(x/n_cols) - math.floor(x/n_cols) ) ) for x in i ]
+        target_rows_id = [ math.ceil(x/n_cols) for x in i ]
+        target_cols_id = [ math.ceil( n_cols * ( float(x/n_cols) - math.floor(x/n_cols) ) ) for x in i ]
 
-    gdf = GeoDataFrame({
-        'geometry' : GeoSeries([Point(reversed(i)) for i in coords]),
-        'id' : i,
-        'x' :  target_cols_id,
-        'y' : target_rows_id
-    })
+        gdf = GeoDataFrame({
+            'geometry' : GeoSeries([Point(reversed(i)) for i in coords]),
+            'id' : i,
+            'x' :  target_cols_id,
+            'y' : target_rows_id
+        })
 
-    gdf.crs = _WIND_TOOLKIT_DEFAULT_EPSG
+    	gdf.crs = _WIND_TOOLKIT_DEFAULT_EPSG
+    	gdf.to_file(_HSDS_CACHE_FILE_PATH)
 
     if filter_by_intersection is not None:
-        target_rows = list(gdf.loc[gdf.within(cascaded_union(filter_by_intersection))]['id'])
+        target_rows = list(gdf.loc[gdf.within(cascaded_union(filter_by_intersection.geometry))]['id'])
         if len(target_rows) is 0:
             raise AttributeError('filter_by_intersection= resulted in no intersecting geometries')
     
@@ -124,6 +130,6 @@ def h5_to_geodataframe(datasets=None, filter_by_intersection=None):
             dataset : f[dataset][::_HOURS_PER_MONTH, gdf['y'], gdf['x']].flatten()
         }, index=target_rows))
 
-    del f, coords
+    del i, target_rows, f, coords
     return(gdf)
 

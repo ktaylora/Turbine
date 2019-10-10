@@ -14,6 +14,9 @@ from shapely.ops import cascaded_union
 from geopandas import GeoSeries, GeoDataFrame
 from pandas import DataFrame
 
+from scipy.stats import norm
+from numpy import poly1d as polynomial_regression
+
 import gdal, ogr
 import h5pyd as h5
 
@@ -63,8 +66,11 @@ _wind_toolkit_datasets = [
     "windspeed_80m"
 ]
 
-def _bootstrap_gaussian_sample(n_samples=10, mean=0, sd=2):
-    pass
+def _bootstrap_normal_dist(n_samples=10, mean=0, variance=2, fun=None):
+    samples = list(norm.rvs(loc=mean, scale=variance, size=n_samples))
+    if fun is not None:
+        return [fun(x) for x in samples]
+    return samples
 
 def rasterize(shapefile_path=None, template=None, outfile=None, **kwargs):
     """
@@ -85,7 +91,7 @@ def rasterize(shapefile_path=None, template=None, outfile=None, **kwargs):
     target_ds.FlushCache()
 
 
-def h5_grid_to_geodataframe(datasets=None, filter_by_intersection=None, cache_file=_HSDS_CACHE_FILE_PATH):
+def h5_grid_to_geodataframe(datasets=None, filter_by_intersection=None, cache_file=_HSDS_CACHE_FILE_PATH, bootstrap_timeseries=0):
     """
     Will parse NREL's Wind Toolkit as efficiently as possible and 
     """
@@ -94,7 +100,7 @@ def h5_grid_to_geodataframe(datasets=None, filter_by_intersection=None, cache_fi
     if os.path.exists(cache_file):
         logger.debug("Using cached file for project region coordinates for the wind toolkit")
         gdf = GeoDataFrame().from_file(cache_file)
-
+        
     else:
 
         logger.debug("Fetching coordinates from wind toolkit HSDS interface")
@@ -114,22 +120,37 @@ def h5_grid_to_geodataframe(datasets=None, filter_by_intersection=None, cache_fi
         })
 
     	gdf.crs = _WIND_TOOLKIT_DEFAULT_EPSG
-    	gdf.to_file(_HSDS_CACHE_FILE_PATH)
-
+        gdf = gdf.iloc[target_rows,:]
+        
     if filter_by_intersection is not None:
         target_rows = list(gdf.loc[gdf.within(cascaded_union(filter_by_intersection.geometry))]['id'])
         if len(target_rows) is 0:
             raise AttributeError('filter_by_intersection= resulted in no intersecting geometries')
     
-    gdf = gdf.iloc[target_rows,:]
+    gdf.to_file(_HSDS_CACHE_FILE_PATH)
 
     logger.debug("Merging in our selected attributes")
 
     for dataset in datasets:
-        gdf = gdf.join(DataFrame({
-            dataset : f[dataset][::_HOURS_PER_MONTH, gdf['y'], gdf['x']].flatten()
-        }, index=target_rows))
+        if bootstrap_timeseries > 0:
+          
+          hourlies = _bootstrap_normal_dist(mean=_HOURS_PER_MONTH, variance=12, fun=round, n_samples=bootstrap_timeseries)
+          y = DataFrame()
+          
+          for hour in hourlies:
+                # column-wise append the monthlies. Each column corresponds to a bootstrap replicate
+                # [i,j] = [84 monthly values,replicates]; apply a regression by-row to estimate
+                # response ~ hour and attribute the fitted values to a final dataframe
+                y = y.join([ f[dataset][::hour, gdf['y'], gdf['x']]  ])  
+          
+          fitted = polynomial_regression(polyfit(X,Y, 2))
+          
+        else:
+          gdf = gdf.join(DataFrame({
+            dataset : f[dataset][::_HOURS_PER_MONTH, gdf['y'], gdf['x']]
+          }, index=target_rows))
 
-    del i, target_rows, f, coords
+    del f # try and cleanly flush our session 
+    
     return(gdf)
 

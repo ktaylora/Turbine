@@ -213,8 +213,13 @@ def attribute_and_bootstrap_timeseries(gdf=None, timeseries=_HOURS_PER_MONTH,
                             " estimator hour=" + str(int(hour)))
                         y_overall.iloc[i,np.array(all_hours) == hour] = \
                             intercept_m
-
-        gdf = gdf.join(y_overall, lsuffix='_gdf')                    
+       
+        y_overall.set_axis(
+            [ dataset + '_' + str(h) for h in all_hours], 
+            axis=1, 
+            inplace=True)
+            
+        gdf = gdf.join(y_overall)                    
 
     f.close()
     del f # try and cleanly flush our toolkit session 

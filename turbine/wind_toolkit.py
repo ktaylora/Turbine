@@ -26,6 +26,7 @@ import h5pyd as h5
 import math
 
 _WIND_TOOLKIT_DEFAULT_EPSG = "+init=epsg:4326"
+_WTK_MAX_HOURS = 61368
 _HOURS_PER_MONTH = 730
 _HSDS_CACHE_FILE_PATH = 'vector/h5_grid.shp'
 
@@ -140,16 +141,17 @@ def attribute_and_bootstrap_timeseries(gdf=None, timeseries=_HOURS_PER_MONTH,
       
     f = h5.File("/nrel/wtk-us.h5", 'r')
     
+    # build an argument spec for scipy.stats.norm
+    _kwargs = dict()
+          
+    _kwargs['variance'] = 64 
+    _kwargs['fun'] = round, 
+    _kwargs['n_samples']  = n_bootstrap_replicates 
+          
+    all_hours = linspace(0, _WTK_MAX_HOURS, num=timeseries, dtype='int')
+    
     for dataset in datasets:
-        # build an argument spec for scipy.stats.norm
-        _kwargs = dict()
-          
-        _kwargs['variance'] = 64 
-        _kwargs['fun'] = round, 
-        _kwargs['n_samples']  = n_bootstrap_replicates 
-          
-        all_hours = linspace(0, 61368, num=timeseries, dtype='int')
-          
+              
         y_overall = DataFrame(np.zero(shape=(len(gdf['id']),len(all_hours))))
           
         for hour in all_hours:
@@ -212,7 +214,7 @@ def attribute_and_bootstrap_timeseries(gdf=None, timeseries=_HOURS_PER_MONTH,
                         y_overall.iloc[i,np.array(all_hours) == hour] = \
                             intercept_m
 
-        gdf.join(y_overall)                    
+        gdf = gdf.join(y_overall, lsuffix='_gdf')                    
 
     f.close()
     del f # try and cleanly flush our toolkit session 

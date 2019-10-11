@@ -27,6 +27,7 @@ from beatbox.raster import slope, aspect, NdArrayDiscCache
 
 from .wind_toolkit import generate_h5_grid_geodataframe
 from .wind_toolkit import attribute_and_bootstrap_timeseries
+from .wind_toolkit import _wind_toolkit_datasets
 
 def _geot_to_affine(geot):
     c, a, b, f, d, e  = list(geot)
@@ -60,8 +61,14 @@ def write_raster(array=None, filename=None, template=None, **kwargs):
         with rio.open(filename, 'w', **kwargs) as dst:
             dst.write(array, 1)
             
+        return(True)
+        
     except FileNotFoundError:
-        raise FileNotFoundError('in filename= argument of write_raster()')
+        logger.exception('FileNotFoundError in filename= argument of write_raster():'+
+            'This should not happen -- are you writing to a weird dir?')
+        return(False)
+    
+    return(False)
 
 def _gdal_rasterize(shapefile_path, template=None, outfile=None, **kwargs):
     """
@@ -208,7 +215,24 @@ if __name__ == '__main__':
     nrel_grid = generate_h5_grid_geodataframe(
       filter_by_intersection = nrel_grid)
     
-    # use a bilinear interpolation to downscale our attributed NREL grid to our 30 meter NED grid
+    wind_products = [
+        'windspeed_200m', 
+        'windspeed_100m', 
+        'windspeed_40m', 
+        'winddirection_200m',
+        'winddirection_100m',
+        'winddirection_40m',
+        'GHI']
+        
+    nrel_grid = attribute_and_bootstrap_timeseries(
+      gdf = nrel_grid,
+      datasets = wind_products,
+      n_bootstrap_replicates = 30)
+    
+    # use a bilinear interpolation to downscale our attributed NREL grid to our 250 meter NED grid
+    wind_rasters = [ rasterize(nrel_grid, template=elev, field=f, dtype=np.dtype('float32')) for f in wind_products ]
+    wind_rasters = [ write_raster(array=wind_rasters[i], filename='raster/'+f+'.tif', template=elev) 
+        for i, f in enumerate(wind_products) ]
     # use a robust regression to estimate NREL station-level wind variable ~ f(bilinear interpolation + topographic variables)
     # write 30 meter downscaled raster surfaces to disc for review
     # aggregate mean + variance statistics of the downscaled grid to our US National grid units

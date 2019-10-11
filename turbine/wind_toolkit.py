@@ -131,8 +131,7 @@ def generate_h5_grid_geodataframe(filter_by_intersection=None,
     return(gdf)
 
 def attribute_and_bootstrap_timeseries(gdf=None, timeseries=_HOURS_PER_MONTH,
-    datasets=None, n_bootstrap_replicates=0, 
-    output='vector/timeseries_product.shp'):
+    datasets=None, n_bootstrap_replicates=0):
     """
     Using an attributed GeoDataFrame containing our target wind toolkit grid 
     ID's, attempt to fetch and attribute wind toolkit time series data for a 
@@ -212,6 +211,8 @@ def attribute_and_bootstrap_timeseries(gdf=None, timeseries=_HOURS_PER_MONTH,
                             " estimator hour=" + str(int(hour)))
                         y_overall.iloc[i,np.array(all_hours) == hour] = \
                             intercept_m
+
+        gdf.join(y_overall)                    
 
     f.close()
     del f # try and cleanly flush our toolkit session 

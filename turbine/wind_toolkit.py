@@ -189,7 +189,7 @@ def fetch_and_attribute_timeseries(gdf=None, timeseries=_HOURS_PER_MONTH, datase
                       x=list(np.array(valid_hourlies)[keep]), 
                       y=list(np.array(row)[keep]), deg=2))
                   
-                  intercept_m = round(np.mean(np.array(row)[keep]),2)
+                  intercept_m = round(mean(np.array(row)[keep]),2)
                   
                   fitted = [ round(m_poly(h),2) for h in 
                     list(np.array(valid_hourlies)[keep]) ]        
@@ -202,16 +202,16 @@ def fetch_and_attribute_timeseries(gdf=None, timeseries=_HOURS_PER_MONTH, datase
                   
                   if r_squared < 0.1:
                       logger.debug("poor regression estimator fit on model for hour="+
-                        str(int(hour)))
- 
-                  y_overall.iloc[index,np.array(all_hours) == hour] = \
-                    round(mean(fitted),2)
-          
-        else:
-          gdf = gdf.join(DataFrame({
-            dataset : f[dataset][::_HOURS_PER_MONTH, gdf['y'], gdf['x']]
-          }, index=target_rows))
+                          str(int(hour)))
+                  elif r_squared < 0:
+                       logger.debug("null model outperformed our regression estimator hour="+
+                           str(int(hour)))
+                       y_overall.iloc[index,np.array(all_hours) == hour] = \
+                           intercept_m
 
+                  y_overall.iloc[index,np.array(all_hours) == hour] = \
+                      round(mean(fitted),2)
+ 
     f.close()
     del f # try and cleanly flush our toolkit session 
     

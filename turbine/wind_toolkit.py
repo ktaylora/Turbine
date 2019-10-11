@@ -8,6 +8,8 @@ warnings.filterwarnings('ignore')
 import logging
 logger = logging.getLogger(__name__)
 
+import os
+
 from shapely.geometry import Point
 from shapely.ops import cascaded_union
 
@@ -16,7 +18,7 @@ from pandas import DataFrame
 
 from scipy.stats import norm
 from numpy import poly1d as polynomial_regression
-from numpy import unique, polyfit, mean
+from numpy import unique, polyfit, mean, linspace
 
 import gdal, ogr
 import h5pyd as h5
@@ -70,7 +72,7 @@ _wind_toolkit_datasets = [
 def _bootstrap_normal_dist(n_samples=10, mean=0, variance=2, fun=None):
     samples = list(norm.rvs(loc=mean, scale=variance, size=n_samples))
     if fun is not None:
-        return [fun(x) for x in samples]
+        return [fun[0](x) for x in samples]
     return samples
 
 def rasterize(shapefile_path=None, template=None, outfile=None, **kwargs):
@@ -92,20 +94,21 @@ def rasterize(shapefile_path=None, template=None, outfile=None, **kwargs):
     target_ds.FlushCache()
 
 
-def generate_h5_grid_geodataframe(datasets=None, filter_by_intersection=None, cache_file=_HSDS_CACHE_FILE_PATH, bootstrap_timeseries=0):
+def generate_h5_grid_geodataframe(filter_by_intersection=None, cache_file=_HSDS_CACHE_FILE_PATH):
     """
     Will parse NREL's Wind Toolkit as efficiently as possible and 
-    """
-    f = h5.File("/nrel/wtk-us.h5", 'r')
-    
+    """  
     if os.path.exists(cache_file):
         logger.debug("Using cached file for project region coordinates for the wind toolkit")
         
         gdf = GeoDataFrame().from_file(cache_file)
         target_rows = gdf['id']
+        
     else:
 
         logger.debug("Fetching coordinates from wind toolkit HSDS interface")
+        
+        f = h5.File("/nrel/wtk-us.h5", 'r')
         
         n_rows, n_cols = f['coordinates'].shape
         coords = f['coordinates'][:].flatten()
@@ -122,19 +125,19 @@ def generate_h5_grid_geodataframe(datasets=None, filter_by_intersection=None, ca
             'y' : target_rows_id
         })
 
-    	gdf.crs = _WIND_TOOLKIT_DEFAULT_EPSG
-    	gdf = gdf.iloc[target_rows,:] 
-    	
-    	gdf.to_file(filename=_HSDS_CACHE_FILE_PATH)
+        gdf.crs = _WIND_TOOLKIT_DEFAULT_EPSG
+        gdf = gdf.iloc[target_rows,:] 
+
+        gdf.to_file(filename=_HSDS_CACHE_FILE_PATH)
+        
+        f.close()
+        del f # try and cleanly flush our toolkit session 
         
     if filter_by_intersection is not None:
         target_rows = list(gdf.loc[gdf.within(cascaded_union(filter_by_intersection.geometry))]['id'])
         if len(target_rows) is 0:
             raise AttributeError('filter_by_intersection= resulted in no intersecting geometries')
         gdf = gdf.iloc[target_rows,:] 
-    
-    f.close()
-    del f # try and cleanly flush our toolkit session 
     
     return(gdf)
 
@@ -152,11 +155,11 @@ def fetch_and_attribute_timeseries(gdf=None, timeseries=_HOURS_PER_MONTH, datase
          # build an argument spec for scipy.stats.norm
           _kwargs = dict()
           
-          _kwargs['variance'] = 12 
+          _kwargs['variance'] = 64 
           _kwargs['fun'] = round, 
           _kwargs['n_samples']  = bootstrap_timeseries 
           
-          all_hours = list(np.linspace(0, 61368, num=timeseries, dtype='int'))
+          all_hours = linspace(0, 61368, num=bootstrap_timeseries, dtype='int')
           
           # let y be a list of DataFrames where each element is a bootstrap
           # replicate of our wind toolkit 'hourlies'. We will use the fitted 
@@ -170,11 +173,12 @@ def fetch_and_attribute_timeseries(gdf=None, timeseries=_HOURS_PER_MONTH, datase
               _kwargs['mean'] = hour
               
               bs_hourlies = [ int(h) for h in unique(_bootstrap_normal_dist(**_kwargs)) ]
+              bs_hourlies = np.array(bs_hourlies)[np.array(bs_hourlies) >= 0]
               
-              y = DataFrame(np.empty(shape=(len(gdf['id']),len(bs_hourlies))))
+              y = DataFrame(np.zeros(shape=(len(gdf['id']),len(bs_hourlies))))
               valid_hourlies = []
           
-              for i, h in enumerate(bs_hourlies):
+              for i, h in enumerate(list(bs_hourlies)):
                   try:
                     y[i] = f[dataset][h,:].flatten()[gdf['id']]
                     valid_hourlies.append(h)
@@ -184,18 +188,18 @@ def fetch_and_attribute_timeseries(gdf=None, timeseries=_HOURS_PER_MONTH, datase
                     
               keep = [h is not None for h in valid_hourlies]
                     
-              for index, row in y.iterrows():
+              for i, site in y.iterrows():
                   m_poly = polynomial_regression(polyfit(
                       x=list(np.array(valid_hourlies)[keep]), 
-                      y=list(np.array(row)[keep]), deg=2))
+                      y=list(np.array(site)[keep]), deg=2))
                   
-                  intercept_m = round(mean(np.array(row)[keep]),2)
+                  intercept_m = round(mean(np.array(site)[keep]),2)
                   
                   fitted = [ round(m_poly(h),2) for h in 
                     list(np.array(valid_hourlies)[keep]) ]        
                   
-                  residuals = np.array(row)[keep] - fitted
-                  residuals_intercept = np.array(row)[keep] - intercept_m
+                  residuals = np.array(site)[keep] - fitted
+                  residuals_intercept = np.array(site)[keep] - intercept_m
                   
                   null_vs_alt_sse = (sum(abs(residuals_intercept)) - sum(abs(residuals)))
                   r_squared = round( null_vs_alt_sse / sum(abs(residuals_intercept)), 2 ) 
@@ -203,14 +207,15 @@ def fetch_and_attribute_timeseries(gdf=None, timeseries=_HOURS_PER_MONTH, datase
                   if r_squared < 0.1:
                       logger.debug("poor regression estimator fit on model for hour="+
                           str(int(hour)))
+                      y_overall.iloc[i,np.array(all_hours) == hour] = \
+                          round(mean(fitted),2)
                   elif r_squared < 0:
                        logger.debug("null model outperformed our regression estimator hour="+
                            str(int(hour)))
-                       y_overall.iloc[index,np.array(all_hours) == hour] = \
+                       y_overall.iloc[i,np.array(all_hours) == hour] = \
                            intercept_m
 
-                  y_overall.iloc[index,np.array(all_hours) == hour] = \
-                      round(mean(fitted),2)
+
  
     f.close()
     del f # try and cleanly flush our toolkit session 

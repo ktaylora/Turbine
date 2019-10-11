@@ -25,6 +25,9 @@ from beatbox import Vector, Raster
 from beatbox.moving_windows import ndimage_filter
 from beatbox.raster import slope, aspect, NdArrayDiscCache
 
+from .wind_toolkit import generate_h5_grid_geodataframe
+from .wind_toolkit import attribute_and_bootstrap_timeseries
+
 def _geot_to_affine(geot):
     c, a, b, f, d, e  = list(geot)
     return( rio.Affine(a,b,c,d,e,f) )
@@ -194,7 +197,17 @@ if __name__ == '__main__':
     else:
         tri_11 = Raster(input=tri_11)
 
-    # Fetch our NREL data from HSDS
+    logger.debug('Checking for NREL Wind Toolkit HSDS grid')
+    
+    nrel_grid = Vector(
+      'config.json', 
+      sql_options = {
+          'table_name':'mboggie.project_region_buffered_1km'
+    }).to_geodataframe()
+      
+    nrel_grid = generate_h5_grid_geodataframe(
+      filter_by_intersection = nrel_grid)
+    
     # use a bilinear interpolation to downscale our attributed NREL grid to our 30 meter NED grid
     # use a robust regression to estimate NREL station-level wind variable ~ f(bilinear interpolation + topographic variables)
     # write 30 meter downscaled raster surfaces to disc for review

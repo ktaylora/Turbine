@@ -123,7 +123,7 @@ def generate_h5_grid_geodataframe(filter_by_intersection=None,
         del f # try and cleanly flush our toolkit session 
         
     if filter_by_intersection is not None:
-        target_rows = list(gdf.loc[gdf.within(cascaded_union(filter_by_intersection.geometry))]['id'])
+        target_rows = gdf.loc[gdf.within(cascaded_union(filter_by_intersection.geometry))]['id']
         if len(target_rows) is 0:
             raise AttributeError('filter_by_intersection= resulted in no intersecting geometries')
         gdf = gdf.iloc[target_rows,:] 
@@ -131,82 +131,88 @@ def generate_h5_grid_geodataframe(filter_by_intersection=None,
     return(gdf)
 
 def attribute_and_bootstrap_timeseries(gdf=None, timeseries=_HOURS_PER_MONTH,
-    datasets=None, boostrap_timeseries=0, output='vector/timeseries_product.shp'):
+    datasets=None, n_bootstrap_replicates=0, 
+    output='vector/timeseries_product.shp'):
     """
-    Using an attributed GeoDataFrame containing our target wind toolkit grid ID's,
-    attempt to fetch and attribute wind toolkit time series data for a focal toolkit dataset(s).
+    Using an attributed GeoDataFrame containing our target wind toolkit grid 
+    ID's, attempt to fetch and attribute wind toolkit time series data for a 
+    focal toolkit dataset(s).
     """
       
     f = h5.File("/nrel/wtk-us.h5", 'r')
     
     for dataset in datasets:
-        if bootstrap_timeseries > 0:
-         
-         # build an argument spec for scipy.stats.norm
-          _kwargs = dict()
+        # build an argument spec for scipy.stats.norm
+        _kwargs = dict()
           
-          _kwargs['variance'] = 64 
-          _kwargs['fun'] = round, 
-          _kwargs['n_samples']  = bootstrap_timeseries 
+        _kwargs['variance'] = 64 
+        _kwargs['fun'] = round, 
+        _kwargs['n_samples']  = n_bootstrap_replicates 
           
-          all_hours = linspace(0, 61368, num=bootstrap_timeseries, dtype='int')
+        all_hours = linspace(0, 61368, num=timeseries, dtype='int')
           
-          # let y be a list of DataFrames where each element is a bootstrap
-          # replicate of our wind toolkit 'hourlies'. We will use the fitted 
-          # values from a quadratic regression across replicates for average each row 
-          # (x,y coordinate) of the tables -- this may blow the RAM out of 
-          # the machine... and NREL may send angry emails about usage.
+        y_overall = DataFrame(np.zero(shape=(len(gdf['id']),len(all_hours))))
           
-          y_overall = DataFrame(np.zero(shape=(len(gdf['id']),len(all_hours))))
-          
-          for hour in all_hours:
-              _kwargs['mean'] = hour
+        for hour in all_hours:
+            _kwargs['mean'] = hour
               
-              bs_hourlies = [ int(h) for h in unique(_bootstrap_normal_dist(**_kwargs)) ]
-              bs_hourlies = np.array(bs_hourlies)[np.array(bs_hourlies) >= 0]
+            if n_bootstrap_replicates is < 1:
+                y = DataFrame(np.zeros(shape=(len(gdf['id']), 1)))
+                
+                try:
+                    y[1] = f[dataset][hour,:].flatten()[gdf['id']]
+                except OSError:
+                    y[1] = None
+                  
+                y_overall.iloc[:,np.array(all_hours) == hour] = y[1]
+                  
+            else:
+                bs_hourlies = [ int(h) for h in 
+                    unique(_bootstrap_normal_dist(**_kwargs)) ]
+                bs_hourlies = np.array(bs_hourlies)[np.array(bs_hourlies) >= 0]
               
-              y = DataFrame(np.zeros(shape=(len(gdf['id']),len(bs_hourlies))))
-              valid_hourlies = []
+                y = DataFrame(np.zeros(shape=(len(gdf['id']),len(bs_hourlies))))
+                valid_hourlies = []
           
-              for i, h in enumerate(list(bs_hourlies)):
-                  try:
-                    y[i] = f[dataset][h,:].flatten()[gdf['id']]
-                    valid_hourlies.append(h)
-                  except OSError:
-                    y[i] = None
-                    valid_hourlies.append(None)
+                for i, h in enumerate(list(bs_hourlies)):
+                    try:
+                        y[i] = f[dataset][h,:].flatten()[gdf['id']]
+                        valid_hourlies.append(h)
+                    except OSError:
+                        y[i] = None
+                        valid_hourlies.append(None)
                     
-              keep = [h is not None for h in valid_hourlies]
+                keep = [h is not None for h in valid_hourlies]
                     
-              for i, site in y.iterrows():
-                  m_poly = polynomial_regression(polyfit(
-                      x=list(np.array(valid_hourlies)[keep]), 
-                      y=list(np.array(site)[keep]), deg=2))
+                for i, site in y.iterrows():
+                    m_poly = polynomial_regression(polyfit(
+                        x=list(np.array(valid_hourlies)[keep]), 
+                        y=list(np.array(site)[keep]), deg=2))
                   
-                  intercept_m = round(mean(np.array(site)[keep]),2)
+                    intercept_m = round(mean(np.array(site)[keep]),2)
                   
-                  fitted = [ round(m_poly(h),2) for h in 
-                    list(np.array(valid_hourlies)[keep]) ]        
+                    fitted = [ round(m_poly(h),2) for h in 
+                        list(np.array(valid_hourlies)[keep]) ]        
                   
-                  residuals = np.array(site)[keep] - fitted
-                  residuals_intercept = np.array(site)[keep] - intercept_m
+                    residuals = np.array(site)[keep] - fitted
+                    residuals_intercept = np.array(site)[keep] - intercept_m
                   
-                  null_vs_alt_sse = (sum(abs(residuals_intercept)) - sum(abs(residuals)))
-                  r_squared = round( null_vs_alt_sse / sum(abs(residuals_intercept)), 2 ) 
+                    null_vs_alt_sse = (sum(abs(residuals_intercept)) - 
+                        sum(abs(residuals)))
+                    r_squared = round( null_vs_alt_sse / 
+                        sum(abs(residuals_intercept)), 2 ) 
                   
-                  if r_squared < 0.1:
-                      logger.debug("poor regression estimator fit on model for hour="+
-                          str(int(hour)))
-                      y_overall.iloc[i,np.array(all_hours) == hour] = \
-                          round(mean(fitted),2)
-                  elif r_squared < 0:
-                       logger.debug("null model outperformed our regression estimator hour="+
-                           str(int(hour)))
-                       y_overall.iloc[i,np.array(all_hours) == hour] = \
-                           intercept_m
+                    if r_squared < 0.1:
+                        logger.debug("poor regression estimator fit on model" + 
+                            "for hour="+str(int(hour)))
+                        y_overall.iloc[i,np.array(all_hours) == hour] = \
+                            round(mean(fitted),2)
+                    elif r_squared < 0:
+                        logger.debug("null model outperformed our regression" +
+                            " estimator hour=" + str(int(hour)))
+                        y_overall.iloc[i,np.array(all_hours) == hour] = \
+                            intercept_m
 
-
- 
     f.close()
     del f # try and cleanly flush our toolkit session 
     

@@ -70,33 +70,22 @@ _wind_toolkit_datasets = [
 ]
 
 def _bootstrap_normal_dist(n_samples=10, mean=0, variance=2, fun=None):
+    """
+    Wrapper for scipy.stats.norm that will generate n normally distributed
+    values about a user-specified mean. This is used for bootstrapping
+    hour-periods used in the wind toolkit api. 
+    """
     samples = list(norm.rvs(loc=mean, scale=variance, size=n_samples))
     if fun is not None:
         return [fun[0](x) for x in samples]
     return samples
 
-def rasterize(shapefile_path=None, template=None, outfile=None, **kwargs):
+def generate_h5_grid_geodataframe(filter_by_intersection=None, 
+    cache_file=_HSDS_CACHE_FILE_PATH):
     """
-    Quick and hackish approach to rasterizing a vector dataset stored as a shapefile on disk 
-    using gdal.RasterizeLayer. I haven't found a faster way to do this.
-    """
-    kwargs['dst_filename'] = kwargs.get('dst_filename', outfile)
-    kwargs['eType'] = kwargs.get('eType', gdal.GDT_Int32)
-    kwargs['xsize'] = kwargs.get('xsize', abs(template.geot[1]))
-    kwargs['ysize'] = kwargs.get('ysize', abs(template.geot[5]))
-    kwargs['bands'] = kwargs.get('bands', 1)
-
-    target_ds = gdal.GetDriverByName('GTiff').Create(**kwargs)
-    layer = ogr.Open(shapefile_path).get_layer()
-
-    gdal.RasterizeLayer(dataset=target_ds, bands=kwargs['bands'], layer=layer, burn_values=1)
-    
-    target_ds.FlushCache()
-
-
-def generate_h5_grid_geodataframe(filter_by_intersection=None, cache_file=_HSDS_CACHE_FILE_PATH):
-    """
-    Will parse NREL's Wind Toolkit as efficiently as possible and 
+    Query and subset the latest wind toolkit spatial grid using a user-specified
+    geometry. By default, will look for a cached (local) copy of the grid to save
+    bandwidth 
     """  
     if os.path.exists(cache_file):
         logger.debug("Using cached file for project region coordinates for the wind toolkit")
@@ -141,7 +130,8 @@ def generate_h5_grid_geodataframe(filter_by_intersection=None, cache_file=_HSDS_
     
     return(gdf)
 
-def fetch_and_attribute_timeseries(gdf=None, timeseries=_HOURS_PER_MONTH, datasets=None, boostrap_timeseries=0):
+def attribute_and_bootstrap_timeseries(gdf=None, timeseries=_HOURS_PER_MONTH,
+    datasets=None, boostrap_timeseries=0, output='vector/timeseries_product.shp'):
     """
     Using an attributed GeoDataFrame containing our target wind toolkit grid ID's,
     attempt to fetch and attribute wind toolkit time series data for a focal toolkit dataset(s).
@@ -167,7 +157,7 @@ def fetch_and_attribute_timeseries(gdf=None, timeseries=_HOURS_PER_MONTH, datase
           # (x,y coordinate) of the tables -- this may blow the RAM out of 
           # the machine... and NREL may send angry emails about usage.
           
-          y_overall = DataFrame(np.empty(shape=(len(gdf['id']),len(all_hours))))
+          y_overall = DataFrame(np.zero(shape=(len(gdf['id']),len(all_hours))))
           
           for hour in all_hours:
               _kwargs['mean'] = hour

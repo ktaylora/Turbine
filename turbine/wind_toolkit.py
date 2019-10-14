@@ -254,16 +254,14 @@ def _disc_cached_attribute_and_bootstrap_timeseries(gdf=None, timeseries=_HOURS_
                         str(intercept_m))
                  y_overall.iloc[i,array(all_hours) == hour] = \
                      intercept_m
-        # join in our full y_overall table with all hourlies for this dataset
-        # with our source WTK grid
-        y_overall.set_axis(
-            [ dataset + '_' + str(h) for h in all_hours],
-            axis=1,
-            inplace=True)
+    # join in our full y_overall table with all hourlies for this dataset
+    # with our source WTK grid
+    y_overall.set_axis(
+        [ dataset + '_' + str(h) for h in all_hours],
+        axis=1,
+        inplace=True)
 
-        gdf = gdf.join(y_overall)
-
-    return(gdf)
+    return( gdf.join(y_overall) )
 
 def _original_attribute_and_bootstrap_timeseries(gdf=None, timeseries=_HOURS_PER_MONTH,
     datasets=None, n_bootstrap_replicates=30):
@@ -359,14 +357,14 @@ def _original_attribute_and_bootstrap_timeseries(gdf=None, timeseries=_HOURS_PER
             # try and cleanly flush our toolkit session
             f.close()
             del f
-            # when finished with all of our bootstrapped hourlies,
-            # join in our full y_overall table (all_hours) for this dataset
-            # with our source WTK grid and move-on to the next dataset
-            y_overall.set_axis(
-                [ dataset + '_' + str(h) for h in all_hours],
-                axis=1,
-                inplace=True)
+        # when finished with all of our bootstrapped hourlies,
+        # join in our full y_overall table (all_hours) for this dataset
+        # with our source WTK grid and move-on to the next dataset
+        y_overall.set_axis(
+            [ dataset + '_' + str(h) for h in all_hours],
+            axis=1,
+            inplace=True)
 
-            gdf = gdf.join(y_overall)
+        gdf = gdf.join(y_overall)
 
     return(gdf)

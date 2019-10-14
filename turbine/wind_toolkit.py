@@ -132,8 +132,10 @@ def generate_h5_grid_geodataframe(filter_by_intersection=None,
 
     return(gdf)
 
-def _disc_cached_attribute_timeseries(gdf=None, timeseries=_HOURS_PER_MONTH,
-    datasets=None):
+def _disc_cached_attribute_timeseries(gdf=None, timeseries=_HOURS_PER_MONTH, datasets=None):
+
+    if not isinstance(datasets, list):
+        datasets = [datasets]
 
     for dataset in datasets:
         f = h5.File("/nrel/wtk-us.h5", 'r')
@@ -201,10 +203,10 @@ def _disc_cached_attribute_and_bootstrap_timeseries(gdf=None, timeseries=_HOURS_
     _kwargs['fun'] = round,
     _kwargs['n_samples']  = n_bootstrap_replicates
 
-    if len(timeseries) == 1:
-        all_hours = linspace(0, _WTK_MAX_HOURS, num=timeseries, dtype='int')
-    else:
+    if isinstance(timeseries, list) :
         all_hours = timeseries
+    else:
+        all_hours = linspace(0, _WTK_MAX_HOURS, num=timeseries, dtype='int')
 
     y_overall = DataFrame(zeros(shape=(len(gdf['id']),len(all_hours))))
 
@@ -218,9 +220,9 @@ def _disc_cached_attribute_and_bootstrap_timeseries(gdf=None, timeseries=_HOURS_
 
         bs_hourlies = [ int(h) for h in
             unique(_bootstrap_normal_dist(**_kwargs)) ]
-            bs_hourlies = array(bs_hourlies)[array(bs_hourlies) >= 0]
+        bs_hourlies = array(bs_hourlies)[array(bs_hourlies) >= 0]
 
-        y_bs_timeseries = _disc_cached_attribute_timeseries(gdf=gdf, timeseries=bs_hourlies)
+        y_bs_timeseries = _disc_cached_attribute_timeseries(gdf=gdf, timeseries=bs_hourlies, datasets=dataset)
 
         logger.debug('Fitting polynomial regression by-site for' +
             ' full time-series')
@@ -230,13 +232,13 @@ def _disc_cached_attribute_and_bootstrap_timeseries(gdf=None, timeseries=_HOURS_
                 x=list(array(bs_hourlies)),
                 y=list(array(site)), deg=2))
 
-            intercept_m = round(mean(np.array(site)),2)
+            intercept_m = round(mean(array(site)),2)
 
             fitted = [ round(m_poly(h), 2) for h in
-                list(np.array(bs_hourlies)) ]
+                list(array(bs_hourlies)) ]
 
-            residuals = np.array(site) - fitted
-            residuals_intercept = np.array(site) - intercept_m
+            residuals = array(site) - fitted
+            residuals_intercept = array(site) - intercept_m
 
             null_vs_alt_sse = (sum(abs(residuals_intercept)) -
                 sum(abs(residuals)))
@@ -245,15 +247,15 @@ def _disc_cached_attribute_and_bootstrap_timeseries(gdf=None, timeseries=_HOURS_
             if r_squared < 0.1:
                 logger.debug('Poor regression estimator fit on model' +
                     ' for hour='+str(int(hour)))
-                y_overall.iloc[i,np.array(all_hours) == hour] = \
+                y_overall.iloc[i,array(all_hours) == hour] = \
                     round(mean(fitted),2)
             elif r_squared < 0:
                 logger.debug('Null model outperformed our regression' +
                     ' estimator hour=' + str(int(hour)) +
                     '; Returning null (mean) time-series estimate:' +
                         str(intercept_m))
-                 y_overall.iloc[i,array(all_hours) == hour] = \
-                     intercept_m
+                y_overall.iloc[i,array(all_hours) == hour] = \
+                    intercept_m
     # join in our full y_overall table with all hourlies for this dataset
     # with our source WTK grid
     y_overall.set_axis(
@@ -276,6 +278,9 @@ def _original_attribute_and_bootstrap_timeseries(gdf=None, timeseries=_HOURS_PER
     _kwargs['variance'] = 64
     _kwargs['fun'] = round,
     _kwargs['n_samples']  = n_bootstrap_replicates
+
+    if not isinstance(datasets, list):
+        datasets = [datasets]
 
     for dataset in datasets:
 

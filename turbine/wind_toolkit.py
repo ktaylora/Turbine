@@ -369,7 +369,7 @@ def _original_attribute_and_bootstrap_timeseries(gdf=None, timeseries=_HOURS_PER
 
                 for i, h in enumerate(list(bs_hourlies)):
                     try:
-                        logger.debug('Downloading hour slice (' +
+                        print('Downloading hour slice (' +
                             str(hour) + ') replicate: ' + str(h) + '...')
                         y[i] = f[dataset][h,:].flatten()[gdf['id']]
                         valid_hourlies.append(h)
@@ -419,13 +419,14 @@ def _original_attribute_and_bootstrap_timeseries(gdf=None, timeseries=_HOURS_PER
                 # try and cleanly flush our toolkit session
                 f.close()
                 del f
-                # join in our full y_overall table with all hourlies for this dataset
-                # with our source WTK grid and move-on to the next datset
-                y_overall.set_axis(
-                    [ dataset + '_' + str(h) for h in all_hours],
-                    axis=1,
-                    inplace=True)
+            # when finished with all of our bootstrapped hourlies,
+            # join in our full y_overall table (all_hours) for this dataset
+            # with our source WTK grid and move-on to the next dataset
+            y_overall.set_axis(
+                [ dataset + '_' + str(h) for h in all_hours],
+                axis=1,
+                inplace=True)
 
-                gdf = gdf.join(y_overall)
+            gdf = gdf.join(y_overall)
 
     return(gdf)

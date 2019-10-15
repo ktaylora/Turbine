@@ -132,9 +132,25 @@ def generate_h5_grid_geodataframe(filter_by_intersection=None,
 
     return(gdf)
 
+def _get_wtk_timeslice_by_hour(gdf=None, hour=None, dataset=None):
+    f = h5.File("/nrel/wkt-us.h5", 'r')
+    
+    result = f[dataset][
+        hour,
+        min(unique(gdf['y'])):max(unique(gdf['y'])),
+        min(unique(gdf['x'])):max(unique(gdf['x'])) ]
+        
+    f.close()
+    del f
+
+    return( result[
+        :, 
+        [ i in gdf['y'] for i in range(result.shape[1]) ],
+        [ i in gdf['x'] for i in range(result.shape[2]) ]] )
+
 def _disc_cached_attribute_timeseries(gdf=None, timeseries=_HOURS_PER_MONTH, datasets=None):
 
-    if not isinstance(datasets, list):
+    if not isinstance(datasets, Iterable):
         datasets = [datasets]
 
     for dataset in datasets:
@@ -203,7 +219,7 @@ def _disc_cached_attribute_and_bootstrap_timeseries(gdf=None, timeseries=_HOURS_
     _kwargs['fun'] = round,
     _kwargs['n_samples']  = n_bootstrap_replicates
 
-    if isinstance(timeseries, list) :
+    if isinstance(timeseries, Iterable) :
         all_hours = timeseries
     else:
         all_hours = linspace(0, _WTK_MAX_HOURS, num=timeseries, dtype='int')
@@ -265,6 +281,7 @@ def _disc_cached_attribute_and_bootstrap_timeseries(gdf=None, timeseries=_HOURS_
 
     return( gdf.join(y_overall) )
 
+
 def _original_attribute_and_bootstrap_timeseries(gdf=None, timeseries=_HOURS_PER_MONTH,
     datasets=None, n_bootstrap_replicates=30):
     """
@@ -279,7 +296,7 @@ def _original_attribute_and_bootstrap_timeseries(gdf=None, timeseries=_HOURS_PER
     _kwargs['fun'] = round,
     _kwargs['n_samples']  = n_bootstrap_replicates
 
-    if not isinstance(datasets, list):
+    if not isinstance(datasets, Iterable):
         datasets = [datasets]
 
     for dataset in datasets:

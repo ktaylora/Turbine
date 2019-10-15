@@ -25,9 +25,8 @@ from beatbox import Vector, Raster
 from beatbox.moving_windows import ndimage_filter
 from beatbox.raster import slope, aspect, NdArrayDiscCache
 
-from .wind_toolkit import generate_h5_grid_geodataframe
-from .wind_toolkit import attribute_and_bootstrap_timeseries
-from .wind_toolkit import _wind_toolkit_datasets
+#from .wind_toolkit import generate_h5_grid_geodataframe
+#from .wind_toolkit import attribute_and_bootstrap_timeseries
 
 def _geot_to_affine(geot):
     c, a, b, f, d, e  = list(geot)
@@ -148,7 +147,7 @@ def get_ned_elevation_raster(extent, res=250, **kwargs):
         elevation.clip(bounds=extent, product=PRODUCT[str(res)], **kwargs)
         elevation.clean()
 
-if __name__ == '__main__':
+if __name__ == "__main__":
 
     logger.debug('Checking for elevation (NED) products')
 

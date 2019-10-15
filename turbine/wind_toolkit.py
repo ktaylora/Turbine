@@ -143,10 +143,7 @@ def _get_wtk_timeslice_by_hour(gdf=None, hour=None, dataset=None):
     f.close()
     del f
 
-    return( result[
-        :, 
-        [ i in gdf['y'] for i in range(result.shape[1]) ],
-        [ i in gdf['x'] for i in range(result.shape[2]) ]] )
+    return( result )
 
 def _disc_cached_attribute_timeseries(gdf=None, timeseries=_HOURS_PER_MONTH, datasets=None):
 

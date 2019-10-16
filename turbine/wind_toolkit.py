@@ -19,7 +19,7 @@ from pandas import DataFrame
 from scipy.stats import norm
 
 from numpy import poly1d as polynomial_regression
-from numpy import unique, polyfit, mean, linspace, memmap, array, zeros, ix_
+from numpy import unique, polyfit, mean, linspace, memmap, array, zeros, ix_, float64
 
 import gdal, ogr
 import h5pyd as h5
@@ -89,7 +89,8 @@ def generate_h5_grid_geodataframe(filter_by_intersection=None,
     bandwidth
     """
     if os.path.exists(cache_file):
-        logger.debug("Using cached file for project region coordinates for the wind toolkit")
+        logger.debug("Using cached file for project region coordinates for" +
+            " the wind toolkit")
 
         gdf = GeoDataFrame().from_file(cache_file)
         target_rows = gdf['id']
@@ -106,7 +107,8 @@ def generate_h5_grid_geodataframe(filter_by_intersection=None,
         target_rows = i = list(range(len(coords)))
 
         target_rows_id = [ math.ceil(x/n_cols) for x in i ]
-        target_cols_id = [ math.ceil( n_cols * ( float(x/n_cols) - math.floor(x/n_cols) ) ) for x in i ]
+        target_cols_id = [ math.ceil( n_cols * 
+            ( float64(x/n_cols) - math.floor(float64(x/n_cols))) )  for x in i ]
 
         gdf = GeoDataFrame({
             'geometry' : GeoSeries([Point(reversed(i)) for i in coords]),
@@ -116,19 +118,32 @@ def generate_h5_grid_geodataframe(filter_by_intersection=None,
         })
 
         gdf.crs = _WIND_TOOLKIT_DEFAULT_EPSG
-        gdf = gdf.iloc[target_rows,:]
+    
+    gdf = gdf.iloc[target_rows,:]
 
-        gdf.to_file(filename=_HSDS_CACHE_FILE_PATH)
-
-        # try and cleanly flush our toolkit session
-        f.close()
-        del f
+    # try and cleanly flush our toolkit session
+    f.close()
+    del f
 
     if filter_by_intersection is not None:
-        target_rows = gdf.loc[gdf.within(cascaded_union(filter_by_intersection.geometry))]['id']
+        try:
+            filter_by_intersection = filter_by_intersection.to_crs(
+                _WIND_TOOLKIT_DEFAULT_EPSG)
+        except ValueError:
+            logger.debug("No CRS found in filter_by_intersection"+
+                ". Sometimes PostGIS results returned" +
+                " by Vector() won't have a CRS -- assuming EPSG:2163")
+            filter_by_intersection.crs = "+init=epsg:2163"
+            filter_by_intersection = filter_by_intersection.to_crs(
+                _WIND_TOOLKIT_DEFAULT_EPSG)
+        target_rows = gdf.loc[gdf.within(cascaded_union(
+            filter_by_intersection.geometry))]['id']
         if len(target_rows) is 0:
-            raise AttributeError('filter_by_intersection= resulted in no intersecting geometries')
+            raise AttributeError('filter_by_intersection= resulted in no'+
+                ' intersecting geometries')
         gdf = gdf.iloc[target_rows,:]
+
+    gdf.to_file(filename=_HSDS_CACHE_FILE_PATH)
 
     return(gdf)
 
@@ -145,7 +160,8 @@ def _get_wtk_timeslice_by_hour(gdf=None, hour=None, dataset=None):
 
     return( result )
 
-def _disc_cached_attribute_timeseries(gdf=None, timeseries=_HOURS_PER_MONTH, datasets=None):
+def _disc_cached_attribute_timeseries(gdf=None, timeseries=_HOURS_PER_MONTH, 
+    datasets=None):
 
     if not isinstance(datasets, Iterable):
         datasets = [datasets]

@@ -207,7 +207,7 @@ if __name__ == "__main__":
     
     nrel_grid = Vector(
       'config.json', 
-      sql_options = {
+      options = {
           'table_name':'mboggie.project_region_buffered_1km'
     }).to_geodataframe()
       

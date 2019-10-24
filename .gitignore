@@ -6,3 +6,5 @@ config.json
 *.dat
 raster/*
 vector/*	
+*.zip
+*.7z

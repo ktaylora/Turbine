@@ -13,6 +13,7 @@ from gee_asset_manager.batch_remover import delete
 from gee_asset_manager.batch_uploader import upload
 from gee_asset_manager.config import setup_logging
 
+
 class ee_ingest:
     def __init__(self, *args):
         try:
@@ -25,14 +26,17 @@ class ee_ingest:
         self.run_upload_task()
 
     def run_upload_task(self, *args):
-        upload(user=args.user,
+        upload(
+            user=args.user,
             source_path=self._filename,
             destination_path=self._asset_id,
             metadata_path=None,
             multipart_upload=None,
             nodata_value=None,
             bucket_name=None,
-            band_names=None)
+            band_names=None,
+        )
+
 
 class RLauncher:
     def __init__(self, *args):

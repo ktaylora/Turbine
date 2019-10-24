@@ -8,3 +8,7 @@ raster/*
 vector/*	
 *.zip
 *.7z
+*.shp
+*.shx
+*.prj
+*.dbf

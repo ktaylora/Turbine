@@ -129,7 +129,8 @@ def generate_h5_grid_geodataframe(
 
         logger.debug("Fetching coordinates from wind toolkit HSDS interface")
 
-        f = h5.File("/nrel/wtk-us.h5", "r")
+        #f = h5.File("/nrel/wtk-us.h5", "r")
+        f = h5.File("/nrel/wtk-us.h5", 'r', bucket="nrel-pds-hsds")
 
         n_rows, n_cols = f["coordinates"].shape
         coords = f["coordinates"][:].flatten()
@@ -206,7 +207,8 @@ def _disc_cached_attribute_timeseries(
         datasets = [datasets]
 
     for dataset in datasets:
-        f = h5.File("/nrel/wtk-us.h5", "r")
+        #f = h5.File("/nrel/wtk-us.h5", "r")
+        f = h5.File("/nrel/wtk-us.h5", 'r', bucket="nrel-pds-hsds")
 
         _WTK_MAX_HOURS = f[dataset].shape[0]
 
@@ -294,10 +296,18 @@ def _disc_cached_attribute_and_bootstrap_timeseries(
     _kwargs["fun"] = (round,)
     _kwargs["n_samples"] = n_bootstrap_replicates
 
+    # take a look at our focal nrel dataset and see
+    # what a reasonable MAX_HOURS parameter should be
+    #f = h5.File("/nrel/wtk-us.h5", "r")
+    f = h5.File("/nrel/wtk-us.h5", 'r', bucket="nrel-pds-hsds")
+    _WTK_MAX_HOURS = f[dataset].shape[0]
+    f.close()
+    del f
+
     if isinstance(timeseries, Iterable):
         all_hours = timeseries
     else:
-        all_hours = linspace(0, timeseries, num=1, dtype="int")
+        all_hours = linspace(0, _WTK_MAX_HOURS, num=timeseries, dtype="int")
 
     y_overall = DataFrame(zeros(shape=(len(gdf["id"]), len(all_hours))))
 

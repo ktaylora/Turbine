@@ -34,9 +34,6 @@ from numpy import (
     prod,
 )
 
-from collections.abc import Iterable
-
-#import gdal, ogr
 import h5pyd as h5
 
 import math
@@ -106,7 +103,6 @@ def _bootstrap_normal_dist(n_samples=10, mean=0, variance=2, fun=None):
     return samples
 
 
-
 def generate_h5_grid_geodataframe(
     filter_by_intersection=None, cache_file=_HSDS_CACHE_FILE_PATH
 ):
@@ -130,17 +126,17 @@ def generate_h5_grid_geodataframe(
 
         logger.debug("Fetching coordinates from wind toolkit HSDS interface")
 
-        #f = h5.File("/nrel/wtk-us.h5", "r")
-        f = h5.File("/nrel/wtk-us.h5", 'r', bucket="nrel-pds-hsds")
+        # f = h5.File("/nrel/wtk-us.h5", "r")
+        f = h5.File("/nrel/wtk-us.h5", "r", bucket="nrel-pds-hsds")
 
         n_rows, n_cols = f["coordinates"].shape
         coords = f["coordinates"][:].flatten()
 
         target_rows = i = list(range(len(coords)))
 
-        target_rows_id = [ int( math.ceil(x / n_cols) ) for x in i]
+        target_rows_id = [int(math.ceil(x / n_cols)) for x in i]
         target_cols_id = [
-            int( round(n_cols * (float64(x / n_cols) - math.floor(float64(x / n_cols)))) )
+            int(round(n_cols * (float64(x / n_cols) - math.floor(float64(x / n_cols)))))
             for x in i
         ]
 
@@ -208,8 +204,8 @@ def _disc_cached_attribute_timeseries(
         datasets = [datasets]
 
     for dataset in datasets:
-        #f = h5.File("/nrel/wtk-us.h5", "r")
-        f = h5.File("/nrel/wtk-us.h5", 'r', bucket="nrel-pds-hsds")
+        # f = h5.File("/nrel/wtk-us.h5", "r")
+        f = h5.File("/nrel/wtk-us.h5", "r", bucket="nrel-pds-hsds")
 
         _WTK_MAX_HOURS = f[dataset].shape[0]
 
@@ -299,13 +295,13 @@ def _disc_cached_attribute_and_bootstrap_timeseries(
 
     # take a look at our focal nrel dataset and see
     # what a reasonable MAX_HOURS parameter should be
-    #f = h5.File("/nrel/wtk-us.h5", "r")
-    f = h5.File("/nrel/wtk-us.h5", 'r', bucket="nrel-pds-hsds")
+    # f = h5.File("/nrel/wtk-us.h5", "r")
+    f = h5.File("/nrel/wtk-us.h5", "r", bucket="nrel-pds-hsds")
     _WTK_MAX_HOURS = f[dataset].shape[0]
     f.close()
     del f
 
-    if isinstance(timeseries, list) :
+    if isinstance(timeseries, list):
         all_hours = timeseries
     else:
         all_hours = linspace(1, _WTK_MAX_HOURS, num=timeseries, dtype="int")

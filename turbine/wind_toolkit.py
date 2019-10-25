@@ -36,7 +36,7 @@ from numpy import (
 
 from collections.abc import Iterable
 
-import gdal, ogr
+#import gdal, ogr
 import h5pyd as h5
 
 import math
@@ -106,6 +106,7 @@ def _bootstrap_normal_dist(n_samples=10, mean=0, variance=2, fun=None):
     return samples
 
 
+
 def generate_h5_grid_geodataframe(
     filter_by_intersection=None, cache_file=_HSDS_CACHE_FILE_PATH
 ):
@@ -137,9 +138,9 @@ def generate_h5_grid_geodataframe(
 
         target_rows = i = list(range(len(coords)))
 
-        target_rows_id = [math.ceil(x / n_cols) for x in i]
+        target_rows_id = [ int( math.ceil(x / n_cols) ) for x in i]
         target_cols_id = [
-            math.ceil(n_cols * (float64(x / n_cols) - math.floor(float64(x / n_cols))))
+            int( round(n_cols * (float64(x / n_cols) - math.floor(float64(x / n_cols)))) )
             for x in i
         ]
 
@@ -203,7 +204,7 @@ def _disc_cached_attribute_timeseries(
     :param datasets:
     :return:
     """
-    if not isinstance(datasets, Iterable):
+    if not isinstance(datasets, list):
         datasets = [datasets]
 
     for dataset in datasets:
@@ -214,7 +215,7 @@ def _disc_cached_attribute_timeseries(
 
         if len(timeseries) == 1:
             # build-out a sequence if the user only provided a single scalar value
-            all_hours = linspace(0, _WTK_MAX_HOURS, num=timeseries, dtype="int")
+            all_hours = linspace(1, _WTK_MAX_HOURS, num=timeseries, dtype="int")
         else:
             # otherwise assume an explicit list of hours was provided
             all_hours = timeseries
@@ -250,7 +251,7 @@ def _disc_cached_attribute_timeseries(
 
         logger.debug(
             "Building a large cached array (n="
-            + wtk_select_len * 3
+            + str(wtk_select_len * 3)
             + ") of features for wtk site select"
         )
         wtk_selection[:] = [
@@ -304,10 +305,10 @@ def _disc_cached_attribute_and_bootstrap_timeseries(
     f.close()
     del f
 
-    if isinstance(timeseries, Iterable):
+    if isinstance(timeseries, list) :
         all_hours = timeseries
     else:
-        all_hours = linspace(0, _WTK_MAX_HOURS, num=timeseries, dtype="int")
+        all_hours = linspace(1, _WTK_MAX_HOURS, num=timeseries, dtype="int")
 
     y_overall = DataFrame(zeros(shape=(len(gdf["id"]), len(all_hours))))
 

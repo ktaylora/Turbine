@@ -1,7 +1,3 @@
-"""
-Manage downloading and ingesting tasks for NREL's HSDS Service
-"""
-
 import warnings
 
 warnings.filterwarnings("ignore")
@@ -10,12 +6,18 @@ import logging
 
 logger = logging.getLogger(__name__)
 
+import sys
 import os
 
+try:
+    from geopandas import GeoSeries, GeoDataFrame
+except ModuleNotFoundError:
+    !{sys.executable} -m pip install geopandas --upgrade
+    from geopandas import GeoSeries, GeoDataFrame
+    
 from shapely.geometry import Point
 from shapely.ops import cascaded_union
 
-from geopandas import GeoSeries, GeoDataFrame
 from pandas import DataFrame
 
 from scipy.stats import norm
@@ -32,60 +34,26 @@ from numpy import (
     ix_,
     float64,
     prod,
+    array_split
 )
 
 import h5pyd as h5
 
 import math
 
-# import sys
-# !{sys.executable} -m pip install geopandas --upgrade
-
+try:
+    from from tqdm import tqdm
+except ModuleNotFoundError:
+    !{sys.executable} -m pip install tqdm --upgrade
+    from tqdm import tqdm
+    
 _WIND_TOOLKIT_DEFAULT_EPSG = "+init=epsg:4326"
 _HOURS_PER_MONTH = 730
 _DOY_VARIANCE_PARAMETER = 60  # std. dev. parameter for days used for bootstrapping
 _HSDS_CACHE_FILE_PATH = "vector/h5_grid.shp"
 
-_wind_toolkit_datasets = [
-    "DIF",
-    "DNI",
-    "GHI",
-    "inversemoninobukhovlength_2m",
-    "precipitationrate_0m",
-    "pressure_0m",
-    "pressure_100m",
-    "pressure_200m",
-    "relativehumidity_2m",
-    "temperature_100m",
-    "temperature_10m",
-    "temperature_120m",
-    "temperature_140m",
-    "temperature_160m",
-    "temperature_200m",
-    "temperature_2m",
-    "temperature_40m",
-    "temperature_60",
-    "temperature_80m",
-    "winddirection_100m",
-    "winddirection_10m",
-    "winddirection_120m",
-    "winddirection_140m",
-    "winddirection_160m",
-    "winddirection_200m",
-    "winddirection_40m",
-    "winddirection_60m",
-    "winddirection_80m",
-    "windspeed_100m",
-    "windspeed_10m",
-    "windspeed_120m",
-    "windspeed_140m",
-    "windspeed_160m",
-    "windspeed_200m",
-    "windspeed_40m",
-    "windspeed_60m",
-    "windspeed_80m",
-]
-
+N_BOOTSTRAP_REPLICATES=30
+DOY_VARIANCE_PARAMETER = 60  # std. dev. parameter for days used for bootstrapping
 
 def _bootstrap_normal_dist(n_samples=10, mean=0, variance=2, fun=None):
     """
@@ -100,7 +68,7 @@ def _bootstrap_normal_dist(n_samples=10, mean=0, variance=2, fun=None):
     """
     samples = list(norm.rvs(loc=mean, scale=variance, size=n_samples))
     if fun is not None:
-        return [fun[0](x) for x in samples]
+        return [int(fun(x)) for x in samples]
     return samples
 
 
@@ -127,17 +95,17 @@ def generate_h5_grid_geodataframe(
 
         logger.debug("Fetching coordinates from wind toolkit HSDS interface")
 
-        # f = h5.File("/nrel/wtk-us.h5", "r")
-        f = h5.File("/nrel/wtk-us.h5", "r", bucket="nrel-pds-hsds")
+        #f = h5.File("/nrel/wtk-us.h5", "r")
+        f = h5.File("/nrel/wtk-us.h5", 'r', bucket="nrel-pds-hsds")
 
         n_rows, n_cols = f["coordinates"].shape
         coords = f["coordinates"][:].flatten()
 
         target_rows = i = list(range(len(coords)))
 
-        target_rows_id = [int(math.ceil(x / n_cols)) for x in i]
+        target_rows_id = [ int( math.ceil(x / n_cols) ) for x in i]
         target_cols_id = [
-            int(round(n_cols * (float64(x / n_cols) - math.floor(float64(x / n_cols)))))
+            int( round(n_cols * (float64(x / n_cols) - math.floor(float64(x / n_cols)))) )
             for x in i
         ]
 
@@ -186,7 +154,14 @@ def generate_h5_grid_geodataframe(
 
     return gdf
 
+def _polynomial_ts_estimator(y=None, x=None, degree=2):
+    m_poly = polynomial_regression(
+        polyfit(x=list(array(x)), y=list(array(y)), deg=degree)
+    )
 
+<<<<<<< HEAD
+    intercept_m = round(mean(array(y)), 2)
+=======
 def _attribute_timeseries(gdf=None, timeseries=_HOURS_PER_MONTH, datasets=None):
     """
     Accepts a GeoDataFrame of hdf5 grid points attributed with
@@ -261,168 +236,118 @@ def _disc_cached_attribute_timeseries(
     """
     if not isinstance(datasets, list):
         datasets = [datasets]
+>>>>>>> be81d2118abca5991536acdb36c56d7cefabfa18
 
-    for dataset in datasets:
-        # f = h5.File("/nrel/wtk-us.h5", "r")
-        f = h5.File("/nrel/wtk-us.h5", "r", bucket="nrel-pds-hsds")
+    fitted = [round(m_poly(hourly), 2) for hourly in list(array(x))]
 
-        _WTK_MAX_HOURS = f[dataset].shape[0]
+    residuals = array(y) - fitted
+    residuals_intercept = array(y) - intercept_m
 
-        if len(timeseries) == 1:
-            # build-out a sequence if the user only provided a single scalar value
-            all_hours = linspace(1, _WTK_MAX_HOURS, num=timeseries, dtype="int")
-        else:
-            # otherwise assume an explicit list of hours was provided
-            all_hours = timeseries
+    null_vs_alt_sse = sum(abs(residuals_intercept)) - sum(abs(residuals))
+    r_squared = round(null_vs_alt_sse / sum(abs(residuals_intercept)), 2)
 
+    if r_squared < 0.1:
         logger.debug(
-            "Building a giant cached array specifying our"
-            + " target WTK hours and sites"
+            "Warning: Poor regression estimator fit on model hourly ~" + 
+            str(intercept_m) + 
+            "; Keeping value, but review output before using."
         )
-
-        if os.path.exists(".wtk_result.dat"):
-            os.remove(".wtk_result.dat")
-
-        wtk_result = memmap(
-            filename=".wtk_result.dat",
-            dtype="float16",
-            mode="w+",
-            shape=(len(all_hours), len(unique(gdf["y"])), len(unique(gdf["x"]))),
-        )
-
-        if os.path.exists(".wtk_selection.dat"):
-            os.remove(".wtk_selection.dat")
-
-        wtk_select_len = prod(
-            (len(all_hours), len(unique(gdf["y"])), len(unique(gdf["x"])))
-        )
-
-        wtk_selection = memmap(
-            filename=".wtk_selection.dat",
-            dtype="bool",
-            mode="w+",
-            shape=(wtk_select_len, 3),
-        )
-
+    elif r_squared < 0:
         logger.debug(
-            "Building a large cached array (n="
-            + str(wtk_select_len * 3)
-            + ") of features for wtk site select"
+            "Null model outperformed our regression" +
+            " estimator hourly ~" +
+            str(intercept_m) +
+            "; Returning null (mean) time-series estimate:" +
+            str(intercept_m) 
         )
-        wtk_selection[:] = [
-            (z, y, x) for x in gdf["x"] for y in gdf["y"] for z in all_hours
-        ]
+        return( intercept_m )
+    
+    return( mean(round(mean(fitted), 2)) )
 
-        logger.debug("Selecting")
-        wtk_result[:] = f[dataset][wtk_selection]
-
-        logger.debug("Done")
-
-        # join in our full y_overall table with all hourlies for this dataset
-        # with our source WTK grid
-        wtk_result.set_axis(
-            [dataset + "_" + str(h) for h in all_hours], axis=1, inplace=True
-        )
-
-        gdf = gdf.join(wtk_result)
-
-        del wtk_result, wtk_selection
-
-    return gdf
-
-
-def _disc_cached_attribute_and_bootstrap_timeseries(
-    gdf=None, timeseries=_HOURS_PER_MONTH, dataset=None, n_bootstrap_replicates=30
+def _query_timeseries(
+    f=None, y=None, x=None, hour=None, dataset=None, max_hours=WTK_MAX_HOURS
 ):
     """
-    Using an attributed GeoDataFrame containing our target wind toolkit grid
-    ID's, attempt to fetch and attribute wind toolkit time series data for a
-    focal toolkit dataset(s). This version uses large array disc caching and
-    array broadcasting to select wind data.
+    Accepts a GeoDataFrame of hdf5 grid points attributed with
+    (y, x) coordinates and query the hsds interface for an hourly
+    time-series values for a dataset specified by the user. This
+    implementation will treat the hourly time-series as literal
+    and will not do a regression to estimate dataset values
     :param gdf:
     :param timeseries:
     :param datasets:
-    :param n_bootstrap_replicates:
     :return:
     """
-    # build an argument spec for scipy.stats.norm
+    if not isinstance(timeseries, list):
+        logger.debug('Building a sequence from user-specified single scalar value')
+        all_hours = _bootstrap_normal_dist(n_samples=N_BOOTSTRAP_REPLICATES, 
+            mean=hour, variance=30, fun=round
+        )
+    else:
+        logger.debug('Assuming an explicit list of hours from user-specified input')
+        all_hours = hour
+
+    _kwargs["mean"] = hour
+    _kwargs["variance"] = DOY_VARIANCE_PARAMETER
+    _kwargs["fun"] = round
+    _kwargs["n_samples"] = N_BOOTSTRAP_REPLICATES
+        
+    bs_hourlies = [int(h) for h in unique(_bootstrap_normal_dist(**_kwargs))]
+    bs_hourlies = array(bs_hourlies)[array(bs_hourlies) >= 0]
+    bs_hourlies = array(bs_hourlies)[array(bs_hourlies) < max_hours]
+        
+    logger.debug('Query: x='+str(x)+'; y='+str(y)+'; z='+str(z))
+    
+    ret = DataFrame()
+    
+    ret[0] = bs_hourlies
+    ret[1] = f[dataset][[(z, y, x) for z in bs_hourlies]]
+
+    return(ret)
+
+def attribute_gdf_w_dataset(gdf=None, hour_interval=None, n_bootstrap_replicates=30, dataset=None):
+    """
+    """
+    logger.debug('Build a target keywords list for our time-series boostrapping'+
+        'procedure')
+        
     _kwargs = dict()
 
+<<<<<<< HEAD
+    _kwargs["variance"] = 64
+    _kwargs["fun"] = round
+=======
     _kwargs["variance"] = _DOY_VARIANCE_PARAMETER
     _kwargs["fun"] = (round,)
+>>>>>>> be81d2118abca5991536acdb36c56d7cefabfa18
     _kwargs["n_samples"] = n_bootstrap_replicates
 
-    # take a look at our focal nrel dataset and see
-    # what a reasonable MAX_HOURS parameter should be
-    # f = h5.File("/nrel/wtk-us.h5", "r")
-    f = h5.File("/nrel/wtk-us.h5", "r", bucket="nrel-pds-hsds")
-    _WTK_MAX_HOURS = f[dataset].shape[0]
-    f.close()
-    del f
+    logger.debug('Attaching to windtoolkit grid')
+    f = h5.File("/nrel/wtk-us.h5", 'r', bucket="nrel-pds-hsds")
+    WTK_MAX_HOURS = f[dataset].shape[0]
 
-    if isinstance(timeseries, list):
-        all_hours = timeseries
-    else:
-        all_hours = linspace(1, _WTK_MAX_HOURS, num=timeseries, dtype="int")
-
-    y_overall = DataFrame(zeros(shape=(len(gdf["id"]), len(all_hours))))
-
-    # pull a number of random hours around our target
-    # hour and fit a polynomial regression to the time-series
-    for i, hour in enumerate(all_hours):
-        _kwargs["mean"] = hour
-
-        logger.debug(
-            "Processing hour: "
-            + str(hour)
-            + "; % complete : "
-            + str(round(i / len(all_hours), 2) * 100)
-        )
-
-        bs_hourlies = [int(h) for h in unique(_bootstrap_normal_dist(**_kwargs))]
-        bs_hourlies = array(bs_hourlies)[array(bs_hourlies) >= 0]
-
-        y_bs_timeseries = _disc_cached_attribute_timeseries(
-            gdf=gdf, timeseries=bs_hourlies, datasets=dataset
-        )
-
-        logger.debug("Fitting polynomial regression by-site for" + " full time-series")
-
-        for i, site in y_bs_timeseries.iterrows():
-            m_poly = polynomial_regression(
-                polyfit(x=list(array(bs_hourlies)), y=list(array(site)), deg=2)
-            )
-
-            intercept_m = round(mean(array(site)), 2)
-
-            fitted = [round(m_poly(h), 2) for h in list(array(bs_hourlies))]
-
-            residuals = array(site) - fitted
-            residuals_intercept = array(site) - intercept_m
-
-            null_vs_alt_sse = sum(abs(residuals_intercept)) - sum(abs(residuals))
-            r_squared = round(null_vs_alt_sse / sum(abs(residuals_intercept)), 2)
-
-            if r_squared < 0.1:
-                logger.debug(
-                    "Poor regression estimator fit on model"
-                    + " for hour="
-                    + str(int(hour))
-                )
-                y_overall.iloc[i, array(all_hours) == hour] = round(mean(fitted), 2)
-            elif r_squared < 0:
-                logger.debug(
-                    "Null model outperformed our regression"
-                    + " estimator hour="
-                    + str(int(hour))
-                    + "; Returning null (mean) time-series estimate:"
-                    + str(intercept_m)
-                )
-                y_overall.iloc[i, array(all_hours) == hour] = intercept_m
-    # join in our full y_overall table with all hourlies for this dataset
-    # with our source WTK grid
-    y_overall.set_axis(
-        [dataset + "_" + str(h) for h in all_hours], axis=1, inplace=True
+    # assume the user only provided a single scalar value that we should build
+    # an hourly time-series with
+    all_hours = linspace(
+        start=1,
+        stop=WTK_MAX_HOURS,
+        num=(WTK_MAX_HOURS / hour_interval) + 1,
+        dtype="int",
     )
 
-    return gdf.join(y_overall)
+    y_overall = DataFrame(zeros(shape=(len(gdf["id"]), len(all_hours))))
+    
+    with tqdm(total=len(y_overall)) as progress:
+        for i, row in gdf.iterrows():
+            for z in all_hours: 
+                #print('Processing site :: '+ 'x:' + str(row['x']) + '; y:' + str(row['y']) + '; z:'+ str(z) +';\n')
+                site_aggregate = _query_timeseries(f, row['y'], row['x'], z, dataset)
+                y_overall.iloc[i, array(all_hours) == z] = _polynomial_ts_estimator(
+                    y=site_aggregate[1], x=site_aggregate[0]
+                )     
+                progress.update(i)      
+
+    f.close()
+    del f
+    
+    return(y_overall)

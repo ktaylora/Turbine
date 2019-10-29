@@ -91,8 +91,9 @@ _wtk_datasets = [
     "windspeed_200m",
     "windspeed_40m",
     "windspeed_60m",
-    "windspeed_80m"
+    "windspeed_80m",
 ]
+
 
 def _bootstrap_normal_dist(n_samples=10, mean=0, variance=2, fun=None):
     """
@@ -228,9 +229,7 @@ def _polynomial_ts_estimator(y=None, x=None, degree=2):
     return mean(round(mean(fitted), 2))
 
 
-def _query_timeseries(
-    f=None, y=None, x=None, hour=None, dataset=None, max_hours=None
-):
+def _query_timeseries(f=None, hour=None, x=None, y=None, dataset=None, max_hours=None):
     """
     Accepts a GeoDataFrame of hdf5 grid points attributed with
     (y, x) coordinates and query the hsds interface for an hourly
@@ -262,7 +261,7 @@ def _query_timeseries(
     bs_hourlies = array(bs_hourlies)[array(bs_hourlies) >= 0]
     bs_hourlies = array(bs_hourlies)[array(bs_hourlies) < max_hours]
 
-    logger.debug("Query: x=" + str(x) + "; y=" + str(y) + "; z=" + str(z))
+    logger.debug("Query: z=" + str(hour) + "; x=" + str(x) + "; y=" + str(y))
 
     ret = DataFrame()
 
@@ -324,7 +323,9 @@ def attribute_gdf_w_dataset(
             for z in all_hours:
                 # sample our dataset of interest using time-series boostrapping around
                 # hour z
-                site_aggregate = _query_timeseries(f, row["y"], row["x"], z, dataset)
+                site_aggregate = _query_timeseries(
+                    f, z, row["x"], row["y"], dataset, WTK_MAX_HOURS
+                )
                 # fit a quadratic regression for value ~f(hour+hour^2)
                 y_overall.iloc[i, array(all_hours) == z] = _polynomial_ts_estimator(
                     y=site_aggregate[1], x=site_aggregate[0]
@@ -340,13 +341,16 @@ def attribute_gdf_w_dataset(
 
 if __name__ == "__main__":
 
-    datasets = []
+    datasets = ["windspeed_80m", "windspeed_100m", "windspeed_200m"]
+
     gdf = GeoDataFrame().from_file("vector/h5_grid.shp")
 
-    for dataset in datasets:
-        result = attribute_gdf_w_dataset(
+    result = [
+        attribute_gdf_w_dataset(
             gdf,
             hour_interval=_HOURS_PER_MONTH,
             n_bootstrap_replicates=30,
             dataset=dataset,
         )
+        for dataset in datasets
+    ]

@@ -14,7 +14,7 @@ try:
 except ModuleNotFoundError:
     !{sys.executable} -m pip install geopandas --upgrade
     from geopandas import GeoSeries, GeoDataFrame
-    
+
 from shapely.geometry import Point
 from shapely.ops import cascaded_union
 
@@ -42,18 +42,18 @@ import h5pyd as h5
 import math
 
 try:
-    from from tqdm import tqdm
+    from tqdm import tqdm
 except ModuleNotFoundError:
     !{sys.executable} -m pip install tqdm --upgrade
     from tqdm import tqdm
-    
+
 _WIND_TOOLKIT_DEFAULT_EPSG = "+init=epsg:4326"
 _HOURS_PER_MONTH = 730
-_DOY_VARIANCE_PARAMETER = 60  # std. dev. parameter for days used for bootstrapping
 _HSDS_CACHE_FILE_PATH = "vector/h5_grid.shp"
 
-N_BOOTSTRAP_REPLICATES=30
+N_BOOTSTRAP_REPLICATES = 30
 DOY_VARIANCE_PARAMETER = 60  # std. dev. parameter for days used for bootstrapping
+
 
 def _bootstrap_normal_dist(n_samples=10, mean=0, variance=2, fun=None):
     """
@@ -73,7 +73,7 @@ def _bootstrap_normal_dist(n_samples=10, mean=0, variance=2, fun=None):
 
 
 def generate_h5_grid_geodataframe(
-    filter_by_intersection=None, cache_file=_HSDS_CACHE_FILE_PATH
+        filter_by_intersection=None, cache_file=_HSDS_CACHE_FILE_PATH
 ):
     """
     Query and subset the latest wind toolkit spatial grid using a user-specified
@@ -95,7 +95,7 @@ def generate_h5_grid_geodataframe(
 
         logger.debug("Fetching coordinates from wind toolkit HSDS interface")
 
-        #f = h5.File("/nrel/wtk-us.h5", "r")
+        # f = h5.File("/nrel/wtk-us.h5", "r")
         f = h5.File("/nrel/wtk-us.h5", 'r', bucket="nrel-pds-hsds")
 
         n_rows, n_cols = f["coordinates"].shape
@@ -103,9 +103,9 @@ def generate_h5_grid_geodataframe(
 
         target_rows = i = list(range(len(coords)))
 
-        target_rows_id = [ int( math.ceil(x / n_cols) ) for x in i]
+        target_rows_id = [int(math.ceil(x / n_cols)) for x in i]
         target_cols_id = [
-            int( round(n_cols * (float64(x / n_cols) - math.floor(float64(x / n_cols)))) )
+            int(round(n_cols * (float64(x / n_cols) - math.floor(float64(x / n_cols)))))
             for x in i
         ]
 
@@ -154,89 +154,13 @@ def generate_h5_grid_geodataframe(
 
     return gdf
 
+
 def _polynomial_ts_estimator(y=None, x=None, degree=2):
     m_poly = polynomial_regression(
         polyfit(x=list(array(x)), y=list(array(y)), deg=degree)
     )
 
-<<<<<<< HEAD
     intercept_m = round(mean(array(y)), 2)
-=======
-def _attribute_timeseries(gdf=None, timeseries=_HOURS_PER_MONTH, datasets=None):
-    """
-    Accepts a GeoDataFrame of hdf5 grid points attributed with
-    (y, x) coordinates and query the hsds interface for an hourly
-    time-series values for a dataset specified by the user. This
-    implementation will treat the hourly time-series as literal
-    and will not do a regression to estimate dataset values
-    :param gdf:
-    :param timeseries:
-    :param datasets:
-    :return:
-    """
-    if not isinstance(datasets, list):
-        datasets = [datasets]
-
-    for dataset in datasets:
-        # f = h5.File("/nrel/wtk-us.h5", "r")
-        f = h5.File("/nrel/wtk-us.h5", "r", bucket="nrel-pds-hsds")
-
-        _WTK_MAX_HOURS = f[dataset].shape[0]
-        _NUM_ARRAY_CHUNKS = 10000
-
-        if not isinstance(timeseries, list):
-            # build-out a sequence if the user only provided a single scalar value
-            all_hours = linspace(
-                start=1,
-                stop=_WTK_MAX_HOURS,
-                num=(_WTK_MAX_HOURS / timeseries) + 1,
-                dtype="int",
-            )
-        else:
-            # otherwise assume an explicit list of hours was provided
-            all_hours = timeseries
-
-        overall = DataFrame()
-
-        for chunk in array_split(gdf, _NUM_ARRAY_CHUNKS):
-
-            wtk_selection = [
-                (z, y, x) for x in chunk["x"] for y in chunk["y"] for z in all_hours
-            ]
-
-            wtk_result = f[dataset][wtk_selection]
-
-            # join in our full y_overall table with all hourlies for this dataset
-            # with our source WTK grid
-            wtk_result.set_axis(
-                [dataset + "_" + str(h) for h in all_hours], axis=1, inplace=True
-            )
-
-            if len(overall) == 0:
-                overall = wtk_result
-            else:
-                overall = overall.join(wtk_result)
-
-    return gdf
-
-
-def _disc_cached_attribute_timeseries(
-    gdf=None, timeseries=_HOURS_PER_MONTH, datasets=None
-):
-    """
-    Accepts a GeoDataFrame of hdf5 grid points attributed with
-    (y, x) coordinates and query the hsds interface for an hourly
-    time-series values for a dataset specified by the user. This
-    implementation will treat the hourly time-series as literal
-    and will not do a regression to estimate dataset values
-    :param gdf:
-    :param timeseries:
-    :param datasets:
-    :return:
-    """
-    if not isinstance(datasets, list):
-        datasets = [datasets]
->>>>>>> be81d2118abca5991536acdb36c56d7cefabfa18
 
     fitted = [round(m_poly(hourly), 2) for hourly in list(array(x))]
 
@@ -248,8 +172,8 @@ def _disc_cached_attribute_timeseries(
 
     if r_squared < 0.1:
         logger.debug(
-            "Warning: Poor regression estimator fit on model hourly ~" + 
-            str(intercept_m) + 
+            "Warning: Poor regression estimator fit on model hourly ~" +
+            str(intercept_m) +
             "; Keeping value, but review output before using."
         )
     elif r_squared < 0:
@@ -258,14 +182,15 @@ def _disc_cached_attribute_timeseries(
             " estimator hourly ~" +
             str(intercept_m) +
             "; Returning null (mean) time-series estimate:" +
-            str(intercept_m) 
+            str(intercept_m)
         )
-        return( intercept_m )
-    
-    return( mean(round(mean(fitted), 2)) )
+        return (intercept_m)
+
+    return (mean(round(mean(fitted), 2)))
+
 
 def _query_timeseries(
-    f=None, y=None, x=None, hour=None, dataset=None, max_hours=WTK_MAX_HOURS
+        f=None, y=None, x=None, hour=None, dataset=None, max_hours=WTK_MAX_HOURS
 ):
     """
     Accepts a GeoDataFrame of hdf5 grid points attributed with
@@ -280,9 +205,9 @@ def _query_timeseries(
     """
     if not isinstance(timeseries, list):
         logger.debug('Building a sequence from user-specified single scalar value')
-        all_hours = _bootstrap_normal_dist(n_samples=N_BOOTSTRAP_REPLICATES, 
-            mean=hour, variance=30, fun=round
-        )
+        all_hours = _bootstrap_normal_dist(n_samples=N_BOOTSTRAP_REPLICATES,
+                                           mean=hour, variance=30, fun=round
+                                           )
     else:
         logger.debug('Assuming an explicit list of hours from user-specified input')
         all_hours = hour
@@ -291,35 +216,31 @@ def _query_timeseries(
     _kwargs["variance"] = DOY_VARIANCE_PARAMETER
     _kwargs["fun"] = round
     _kwargs["n_samples"] = N_BOOTSTRAP_REPLICATES
-        
+
     bs_hourlies = [int(h) for h in unique(_bootstrap_normal_dist(**_kwargs))]
     bs_hourlies = array(bs_hourlies)[array(bs_hourlies) >= 0]
     bs_hourlies = array(bs_hourlies)[array(bs_hourlies) < max_hours]
-        
-    logger.debug('Query: x='+str(x)+'; y='+str(y)+'; z='+str(z))
-    
+
+    logger.debug('Query: x=' + str(x) + '; y=' + str(y) + '; z=' + str(z))
+
     ret = DataFrame()
-    
+
     ret[0] = bs_hourlies
     ret[1] = f[dataset][[(z, y, x) for z in bs_hourlies]]
 
-    return(ret)
+    return (ret)
+
 
 def attribute_gdf_w_dataset(gdf=None, hour_interval=None, n_bootstrap_replicates=30, dataset=None):
     """
     """
-    logger.debug('Build a target keywords list for our time-series boostrapping'+
-        'procedure')
-        
+    logger.debug('Build a target keywords list for our time-series boostrapping' +
+                 'procedure')
+
     _kwargs = dict()
 
-<<<<<<< HEAD
     _kwargs["variance"] = 64
     _kwargs["fun"] = round
-=======
-    _kwargs["variance"] = _DOY_VARIANCE_PARAMETER
-    _kwargs["fun"] = (round,)
->>>>>>> be81d2118abca5991536acdb36c56d7cefabfa18
     _kwargs["n_samples"] = n_bootstrap_replicates
 
     logger.debug('Attaching to windtoolkit grid')
@@ -336,18 +257,31 @@ def attribute_gdf_w_dataset(gdf=None, hour_interval=None, n_bootstrap_replicates
     )
 
     y_overall = DataFrame(zeros(shape=(len(gdf["id"]), len(all_hours))))
-    
+
     with tqdm(total=len(y_overall)) as progress:
         for i, row in gdf.iterrows():
-            for z in all_hours: 
-                #print('Processing site :: '+ 'x:' + str(row['x']) + '; y:' + str(row['y']) + '; z:'+ str(z) +';\n')
+            for z in all_hours:
+                # print('Processing site :: '+ 'x:' + str(row['x']) + '; y:' + str(row['y']) + '; z:'+ str(z) +';\n')
                 site_aggregate = _query_timeseries(f, row['y'], row['x'], z, dataset)
                 y_overall.iloc[i, array(all_hours) == z] = _polynomial_ts_estimator(
                     y=site_aggregate[1], x=site_aggregate[0]
-                )     
-                progress.update(i)      
+                )
+                progress.update(i)
 
     f.close()
     del f
-    
-    return(y_overall)
+
+    return (y_overall)
+
+
+if __name__ == '__main__':
+
+    datasets =
+    gdf = GeoDataFrame().from_file('vector/h5_grid.shp')
+
+    for dataset in datasets:
+        result = attribute_gdf_w_dataset(
+            gdf, hour_interval=_HOURS_PER_MONTH,
+            n_bootstrap_replicates=30, dataset=dataset
+        )
+

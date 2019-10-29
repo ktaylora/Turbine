@@ -12,7 +12,7 @@ import os
 try:
     from geopandas import GeoSeries, GeoDataFrame
 except ModuleNotFoundError:
-    !{sys.executable} -m pip install geopandas --upgrade
+    #!{sys.executable} -m pip install geopandas --upgrade
     from geopandas import GeoSeries, GeoDataFrame
 
 from shapely.geometry import Point
@@ -34,7 +34,7 @@ from numpy import (
     ix_,
     float64,
     prod,
-    array_split
+    array_split,
 )
 
 import h5pyd as h5
@@ -44,7 +44,7 @@ import math
 try:
     from tqdm import tqdm
 except ModuleNotFoundError:
-    !{sys.executable} -m pip install tqdm --upgrade
+    #!{sys.executable} -m pip install tqdm --upgrade
     from tqdm import tqdm
 
 _WIND_TOOLKIT_DEFAULT_EPSG = "+init=epsg:4326"
@@ -73,7 +73,7 @@ def _bootstrap_normal_dist(n_samples=10, mean=0, variance=2, fun=None):
 
 
 def generate_h5_grid_geodataframe(
-        filter_by_intersection=None, cache_file=_HSDS_CACHE_FILE_PATH
+    filter_by_intersection=None, cache_file=_HSDS_CACHE_FILE_PATH
 ):
     """
     Query and subset the latest wind toolkit spatial grid using a user-specified
@@ -96,7 +96,7 @@ def generate_h5_grid_geodataframe(
         logger.debug("Fetching coordinates from wind toolkit HSDS interface")
 
         # f = h5.File("/nrel/wtk-us.h5", "r")
-        f = h5.File("/nrel/wtk-us.h5", 'r', bucket="nrel-pds-hsds")
+        f = h5.File("/nrel/wtk-us.h5", "r", bucket="nrel-pds-hsds")
 
         n_rows, n_cols = f["coordinates"].shape
         coords = f["coordinates"][:].flatten()
@@ -172,25 +172,25 @@ def _polynomial_ts_estimator(y=None, x=None, degree=2):
 
     if r_squared < 0.1:
         logger.debug(
-            "Warning: Poor regression estimator fit on model hourly ~" +
-            str(intercept_m) +
-            "; Keeping value, but review output before using."
+            "Warning: Poor regression estimator fit on model hourly ~"
+            + str(intercept_m)
+            + "; Keeping value, but review output before using."
         )
     elif r_squared < 0:
         logger.debug(
-            "Null model outperformed our regression" +
-            " estimator hourly ~" +
-            str(intercept_m) +
-            "; Returning null (mean) time-series estimate:" +
-            str(intercept_m)
+            "Null model outperformed our regression"
+            + " estimator hourly ~"
+            + str(intercept_m)
+            + "; Returning null (mean) time-series estimate:"
+            + str(intercept_m)
         )
-        return (intercept_m)
+        return intercept_m
 
-    return (mean(round(mean(fitted), 2)))
+    return mean(round(mean(fitted), 2))
 
 
 def _query_timeseries(
-        f=None, y=None, x=None, hour=None, dataset=None, max_hours=WTK_MAX_HOURS
+    f=None, y=None, x=None, hour=None, dataset=None, max_hours=WTK_MAX_HOURS
 ):
     """
     Accepts a GeoDataFrame of hdf5 grid points attributed with
@@ -204,12 +204,12 @@ def _query_timeseries(
     :return:
     """
     if not isinstance(timeseries, list):
-        logger.debug('Building a sequence from user-specified single scalar value')
-        all_hours = _bootstrap_normal_dist(n_samples=N_BOOTSTRAP_REPLICATES,
-                                           mean=hour, variance=30, fun=round
-                                           )
+        logger.debug("Building a sequence from user-specified single scalar value")
+        all_hours = _bootstrap_normal_dist(
+            n_samples=N_BOOTSTRAP_REPLICATES, mean=hour, variance=30, fun=round
+        )
     else:
-        logger.debug('Assuming an explicit list of hours from user-specified input')
+        logger.debug("Assuming an explicit list of hours from user-specified input")
         all_hours = hour
 
     _kwargs["mean"] = hour
@@ -221,21 +221,24 @@ def _query_timeseries(
     bs_hourlies = array(bs_hourlies)[array(bs_hourlies) >= 0]
     bs_hourlies = array(bs_hourlies)[array(bs_hourlies) < max_hours]
 
-    logger.debug('Query: x=' + str(x) + '; y=' + str(y) + '; z=' + str(z))
+    logger.debug("Query: x=" + str(x) + "; y=" + str(y) + "; z=" + str(z))
 
     ret = DataFrame()
 
     ret[0] = bs_hourlies
     ret[1] = f[dataset][[(z, y, x) for z in bs_hourlies]]
 
-    return (ret)
+    return ret
 
 
-def attribute_gdf_w_dataset(gdf=None, hour_interval=None, n_bootstrap_replicates=30, dataset=None):
+def attribute_gdf_w_dataset(
+    gdf=None, hour_interval=None, n_bootstrap_replicates=30, dataset=None
+):
     """
     """
-    logger.debug('Build a target keywords list for our time-series boostrapping' +
-                 'procedure')
+    logger.debug(
+        "Build a target keywords list for our time-series boostrapping" + "procedure"
+    )
 
     _kwargs = dict()
 
@@ -243,8 +246,8 @@ def attribute_gdf_w_dataset(gdf=None, hour_interval=None, n_bootstrap_replicates
     _kwargs["fun"] = round
     _kwargs["n_samples"] = n_bootstrap_replicates
 
-    logger.debug('Attaching to windtoolkit grid')
-    f = h5.File("/nrel/wtk-us.h5", 'r', bucket="nrel-pds-hsds")
+    logger.debug("Attaching to windtoolkit grid")
+    f = h5.File("/nrel/wtk-us.h5", "r", bucket="nrel-pds-hsds")
     WTK_MAX_HOURS = f[dataset].shape[0]
 
     # assume the user only provided a single scalar value that we should build
@@ -262,7 +265,7 @@ def attribute_gdf_w_dataset(gdf=None, hour_interval=None, n_bootstrap_replicates
         for i, row in gdf.iterrows():
             for z in all_hours:
                 # print('Processing site :: '+ 'x:' + str(row['x']) + '; y:' + str(row['y']) + '; z:'+ str(z) +';\n')
-                site_aggregate = _query_timeseries(f, row['y'], row['x'], z, dataset)
+                site_aggregate = _query_timeseries(f, row["y"], row["x"], z, dataset)
                 y_overall.iloc[i, array(all_hours) == z] = _polynomial_ts_estimator(
                     y=site_aggregate[1], x=site_aggregate[0]
                 )
@@ -271,17 +274,18 @@ def attribute_gdf_w_dataset(gdf=None, hour_interval=None, n_bootstrap_replicates
     f.close()
     del f
 
-    return (y_overall)
+    return y_overall
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
 
-    datasets =
-    gdf = GeoDataFrame().from_file('vector/h5_grid.shp')
+    datasets = []
+    gdf = GeoDataFrame().from_file("vector/h5_grid.shp")
 
     for dataset in datasets:
         result = attribute_gdf_w_dataset(
-            gdf, hour_interval=_HOURS_PER_MONTH,
-            n_bootstrap_replicates=30, dataset=dataset
+            gdf,
+            hour_interval=_HOURS_PER_MONTH,
+            n_bootstrap_replicates=30,
+            dataset=dataset,
         )
-

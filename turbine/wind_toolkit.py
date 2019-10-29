@@ -43,6 +43,7 @@ import math
 
 _WIND_TOOLKIT_DEFAULT_EPSG = "+init=epsg:4326"
 _HOURS_PER_MONTH = 730
+_DOY_VARIANCE_PARAMETER = 60  # std. dev. parameter for days used for bootstrapping
 _HSDS_CACHE_FILE_PATH = "vector/h5_grid.shp"
 
 _wind_toolkit_datasets = [
@@ -186,6 +187,64 @@ def generate_h5_grid_geodataframe(
     return gdf
 
 
+def _attribute_timeseries(gdf=None, timeseries=_HOURS_PER_MONTH, datasets=None):
+    """
+    Accepts a GeoDataFrame of hdf5 grid points attributed with
+    (y, x) coordinates and query the hsds interface for an hourly
+    time-series values for a dataset specified by the user. This
+    implementation will treat the hourly time-series as literal
+    and will not do a regression to estimate dataset values
+    :param gdf:
+    :param timeseries:
+    :param datasets:
+    :return:
+    """
+    if not isinstance(datasets, list):
+        datasets = [datasets]
+
+    for dataset in datasets:
+        # f = h5.File("/nrel/wtk-us.h5", "r")
+        f = h5.File("/nrel/wtk-us.h5", "r", bucket="nrel-pds-hsds")
+
+        _WTK_MAX_HOURS = f[dataset].shape[0]
+        _NUM_ARRAY_CHUNKS = 10000
+
+        if not isinstance(timeseries, list):
+            # build-out a sequence if the user only provided a single scalar value
+            all_hours = linspace(
+                start=1,
+                stop=_WTK_MAX_HOURS,
+                num=(_WTK_MAX_HOURS / timeseries) + 1,
+                dtype="int",
+            )
+        else:
+            # otherwise assume an explicit list of hours was provided
+            all_hours = timeseries
+
+        overall = DataFrame()
+
+        for chunk in array_split(gdf, _NUM_ARRAY_CHUNKS):
+
+            wtk_selection = [
+                (z, y, x) for x in chunk["x"] for y in chunk["y"] for z in all_hours
+            ]
+
+            wtk_result = f[dataset][wtk_selection]
+
+            # join in our full y_overall table with all hourlies for this dataset
+            # with our source WTK grid
+            wtk_result.set_axis(
+                [dataset + "_" + str(h) for h in all_hours], axis=1, inplace=True
+            )
+
+            if len(overall) == 0:
+                overall = wtk_result
+            else:
+                overall = overall.join(wtk_result)
+
+    return gdf
+
+
 def _disc_cached_attribute_timeseries(
     gdf=None, timeseries=_HOURS_PER_MONTH, datasets=None
 ):
@@ -289,7 +348,7 @@ def _disc_cached_attribute_and_bootstrap_timeseries(
     # build an argument spec for scipy.stats.norm
     _kwargs = dict()
 
-    _kwargs["variance"] = 64
+    _kwargs["variance"] = _DOY_VARIANCE_PARAMETER
     _kwargs["fun"] = (round,)
     _kwargs["n_samples"] = n_bootstrap_replicates
 

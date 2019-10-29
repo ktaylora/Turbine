@@ -318,7 +318,7 @@ def attribute_gdf_w_dataset(
     # rather than while we are querying the HSDS interface
     y_overall = DataFrame(zeros(shape=(len(gdf["id"]), len(all_hours))))
 
-    with tqdm(total=len(y_overall)) as progress:
+    with tqdm(total=len(gdf)*len(all_hours)) as progress:
         for i, row in gdf.iterrows():
             for z in all_hours:
                 # sample our dataset of interest using time-series boostrapping around
@@ -345,7 +345,7 @@ if __name__ == "__main__":
 
     gdf = GeoDataFrame().from_file("vector/h5_grid.shp")
 
-    result = [
+    attributed_points = [
         attribute_gdf_w_dataset(
             gdf,
             hour_interval=_HOURS_PER_MONTH,

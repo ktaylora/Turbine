@@ -6,14 +6,16 @@ import logging
 
 logger = logging.getLogger(__name__)
 
-import sys
 import os
 
 try:
     from geopandas import GeoSeries, GeoDataFrame
 except ModuleNotFoundError:
-    #!{sys.executable} -m pip install geopandas --upgrade
-    from geopandas import GeoSeries, GeoDataFrame
+    raise ModuleNotFoundError(
+        "Try running: "
+        + "!{sys.executable} -m pip install geopandas --upgrade"
+        + "in your python shell and run this again."
+    )
 
 from shapely.geometry import Point
 from shapely.ops import cascaded_union
@@ -23,29 +25,27 @@ from pandas import DataFrame
 from scipy.stats import norm
 
 from numpy import poly1d as polynomial_regression
-from numpy import (
-    unique,
-    polyfit,
-    mean,
-    linspace,
-    memmap,
-    array,
-    zeros,
-    ix_,
-    float64,
-    prod,
-    array_split,
-)
+from numpy import unique, polyfit, mean, linspace, array, zeros, float64
 
-import h5pyd as h5
+try:
+    import h5pyd as h5
+except ModuleNotFoundError:
+    raise ModuleNotFoundError(
+        "Try running: "
+        + "!{sys.executable} -m pip install git+http://github.com/HDFGroup/h5pyd.git --upgrade"
+        + "in your python shell and run this again."
+    )
 
 import math
 
 try:
     from tqdm import tqdm
 except ModuleNotFoundError:
-    #!{sys.executable} -m pip install tqdm --upgrade
-    from tqdm import tqdm
+    raise ModuleNotFoundError(
+        "Try running: "
+        + "!{sys.executable} -m pip install tqdm --upgrade"
+        + "in your python shell and run this again."
+    )
 
 _WIND_TOOLKIT_DEFAULT_EPSG = "+init=epsg:4326"
 _HOURS_PER_MONTH = 730
@@ -203,7 +203,7 @@ def _query_timeseries(
     :param datasets:
     :return:
     """
-    if not isinstance(timeseries, list):
+    if not isinstance(hour, list):
         logger.debug("Building a sequence from user-specified single scalar value")
         all_hours = _bootstrap_normal_dist(
             n_samples=N_BOOTSTRAP_REPLICATES, mean=hour, variance=30, fun=round
@@ -211,6 +211,8 @@ def _query_timeseries(
     else:
         logger.debug("Assuming an explicit list of hours from user-specified input")
         all_hours = hour
+
+    _kwargs = {}
 
     _kwargs["mean"] = hour
     _kwargs["variance"] = DOY_VARIANCE_PARAMETER
@@ -235,6 +237,16 @@ def attribute_gdf_w_dataset(
     gdf=None, hour_interval=None, n_bootstrap_replicates=30, dataset=None
 ):
     """
+    Accepts a user-specified H5 GeoDataFrame and attributes points in the grid
+    with fitted values of a polynomial time-series regression for some hourly
+    time slice. The hour interval is calculated for a full WTK dataset and each
+    hourly is bootstrapped (without replacement) to fit the regression estimator.
+
+    :param gdf:
+    :param hour_interval:
+    :param n_bootstrap_replicates:
+    :param dataset:
+    :return:
     """
     logger.debug(
         "Build a target keywords list for our time-series boostrapping" + "procedure"
@@ -248,6 +260,7 @@ def attribute_gdf_w_dataset(
 
     logger.debug("Attaching to windtoolkit grid")
     f = h5.File("/nrel/wtk-us.h5", "r", bucket="nrel-pds-hsds")
+
     WTK_MAX_HOURS = f[dataset].shape[0]
 
     # assume the user only provided a single scalar value that we should build
@@ -264,11 +277,12 @@ def attribute_gdf_w_dataset(
     with tqdm(total=len(y_overall)) as progress:
         for i, row in gdf.iterrows():
             for z in all_hours:
-                # print('Processing site :: '+ 'x:' + str(row['x']) + '; y:' + str(row['y']) + '; z:'+ str(z) +';\n')
                 site_aggregate = _query_timeseries(f, row["y"], row["x"], z, dataset)
+
                 y_overall.iloc[i, array(all_hours) == z] = _polynomial_ts_estimator(
                     y=site_aggregate[1], x=site_aggregate[0]
                 )
+
                 progress.update(i)
 
     f.close()

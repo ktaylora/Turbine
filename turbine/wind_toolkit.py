@@ -54,6 +54,46 @@ _HSDS_CACHE_FILE_PATH = "vector/h5_grid.shp"
 N_BOOTSTRAP_REPLICATES = 30
 DOY_VARIANCE_PARAMETER = 60  # std. dev. parameter for days used for bootstrapping
 
+_wtk_datasets = [
+    "DIF",
+    "DNI",
+    "GHI",
+    "inversemoninobukhovlength_2m",
+    "precipitationrate_0m",
+    "pressure_0m",
+    "pressure_100m",
+    "pressure_200m",
+    "relativehumidity_2m",
+    "temperature_100m",
+    "temperature_10m",
+    "temperature_120m",
+    "temperature_140m",
+    "temperature_160m",
+    "temperature_200m",
+    "temperature_2m",
+    "temperature_40m",
+    "temperature_60",
+    "temperature_80m",
+    "winddirection_100m",
+    "winddirection_10m",
+    "winddirection_120m",
+    "winddirection_140m",
+    "winddirection_160m",
+    "winddirection_200m",
+    "winddirection_40m",
+    "winddirection_60m",
+    "winddirection_80m",
+    "windspeed_100m",
+    "windspeed_10m",
+    "windspeed_120m",
+    "windspeed_140m",
+    "windspeed_160m",
+    "windspeed_200m",
+    "windspeed_40m",
+    "windspeed_60m",
+    "windspeed_80m"
+]
+
 def _bootstrap_normal_dist(n_samples=10, mean=0, variance=2, fun=None):
     """
     Wrapper for scipy.stats.norm that will generate n normally distributed
@@ -227,7 +267,7 @@ def _query_timeseries(
     ret = DataFrame()
 
     ret[0] = bs_hourlies
-    ret[1] = f[dataset][[(z, y, x) for z in bs_hourlies]]
+    ret[1] = f[dataset][[(z, x, y) for z in bs_hourlies]]
 
     return ret
 

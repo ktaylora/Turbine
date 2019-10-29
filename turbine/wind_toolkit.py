@@ -54,7 +54,6 @@ _HSDS_CACHE_FILE_PATH = "vector/h5_grid.shp"
 N_BOOTSTRAP_REPLICATES = 30
 DOY_VARIANCE_PARAMETER = 60  # std. dev. parameter for days used for bootstrapping
 
-
 def _bootstrap_normal_dist(n_samples=10, mean=0, variance=2, fun=None):
     """
     Wrapper for scipy.stats.norm that will generate n normally distributed
@@ -190,7 +189,7 @@ def _polynomial_ts_estimator(y=None, x=None, degree=2):
 
 
 def _query_timeseries(
-    f=None, y=None, x=None, hour=None, dataset=None, max_hours=WTK_MAX_HOURS
+    f=None, y=None, x=None, hour=None, dataset=None, max_hours=None
 ):
     """
     Accepts a GeoDataFrame of hdf5 grid points attributed with
@@ -242,6 +241,10 @@ def attribute_gdf_w_dataset(
     time slice. The hour interval is calculated for a full WTK dataset and each
     hourly is bootstrapped (without replacement) to fit the regression estimator.
 
+    In plain english, this is used to estimate 'monthly' or 'weekly' values of
+    windspeed (or other variables) from wind toolkit hourly data in a way that
+    is a little more robust than just taking the point values for each time-period.
+
     :param gdf:
     :param hour_interval:
     :param n_bootstrap_replicates:
@@ -271,20 +274,24 @@ def attribute_gdf_w_dataset(
         num=(WTK_MAX_HOURS / hour_interval) + 1,
         dtype="int",
     )
-
+    # pre-allocate a destination table with zeros -- if this fails
+    # due to memory limitations it's better to discover it now
+    # rather than while we are querying the HSDS interface
     y_overall = DataFrame(zeros(shape=(len(gdf["id"]), len(all_hours))))
 
     with tqdm(total=len(y_overall)) as progress:
         for i, row in gdf.iterrows():
             for z in all_hours:
+                # sample our dataset of interest using time-series boostrapping around
+                # hour z
                 site_aggregate = _query_timeseries(f, row["y"], row["x"], z, dataset)
-
+                # fit a quadratic regression for value ~f(hour+hour^2)
                 y_overall.iloc[i, array(all_hours) == z] = _polynomial_ts_estimator(
                     y=site_aggregate[1], x=site_aggregate[0]
                 )
-
+                # how YOU doin'?
                 progress.update(i)
-
+    # clean-up our session -- don't let the socket sit there lurking
     f.close()
     del f
 

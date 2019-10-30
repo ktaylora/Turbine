@@ -6,7 +6,8 @@ import logging
 
 logger = logging.getLogger(__name__)
 
-import os
+import sys, os
+import time
 
 try:
     from geopandas import GeoSeries, GeoDataFrame
@@ -32,7 +33,7 @@ try:
 except ModuleNotFoundError:
     raise ModuleNotFoundError(
         "Try running: "
-        + "!{sys.executable} -m pip install git+http://github.com/HDFGroup/h5pyd.git --upgrade"
+        + "!{sys.executable} -m pip install git+http://github.com/HDFGroup/h5pyd.git --upgrade "
         + "in your python shell and run this again."
     )
 
@@ -43,7 +44,7 @@ try:
 except ModuleNotFoundError:
     raise ModuleNotFoundError(
         "Try running: "
-        + "!{sys.executable} -m pip install tqdm --upgrade"
+        + "!{sys.executable} -m pip install tqdm --upgrade "
         + "in your python shell and run this again."
     )
 
@@ -53,6 +54,8 @@ _HSDS_CACHE_FILE_PATH = "vector/h5_grid.shp"
 
 N_BOOTSTRAP_REPLICATES = 30
 DOY_VARIANCE_PARAMETER = 60  # std. dev. parameter for days used for bootstrapping
+
+f = h5.File("/nrel/wtk-us.h5", "r", bucket="nrel-pds-hsds")
 
 _wtk_datasets = [
     "DIF",
@@ -123,6 +126,8 @@ def generate_h5_grid_geodataframe(
     :param cache_file:
     :return:
     """
+    global f
+
     if os.path.exists(cache_file):
         logger.debug(
             "Using cached file for project region coordinates for the wind toolkit"
@@ -134,9 +139,6 @@ def generate_h5_grid_geodataframe(
     else:
 
         logger.debug("Fetching coordinates from wind toolkit HSDS interface")
-
-        # f = h5.File("/nrel/wtk-us.h5", "r")
-        f = h5.File("/nrel/wtk-us.h5", "r", bucket="nrel-pds-hsds")
 
         n_rows, n_cols = f["coordinates"].shape
         coords = f["coordinates"][:].flatten()
@@ -161,10 +163,6 @@ def generate_h5_grid_geodataframe(
         gdf.crs = _WIND_TOOLKIT_DEFAULT_EPSG
 
     gdf = gdf.iloc[target_rows, :]
-
-    # try and cleanly flush our toolkit session
-    f.close()
-    del f
 
     if filter_by_intersection is not None:
         try:
@@ -210,7 +208,7 @@ def _polynomial_ts_estimator(y=None, x=None, degree=2):
     null_vs_alt_sse = sum(abs(residuals_intercept)) - sum(abs(residuals))
     r_squared = round(null_vs_alt_sse / sum(abs(residuals_intercept)), 2)
 
-    if r_squared > 0 and r_squared < 0.1 :
+    if r_squared > 0 and r_squared < 0.1:
         logger.debug(
             "Warning: Poor regression estimator fit on model hourly ~"
             + str(intercept_m)
@@ -229,7 +227,7 @@ def _polynomial_ts_estimator(y=None, x=None, degree=2):
     return round(mean(fitted), 2)
 
 
-def _query_timeseries(f=None, hour=None, x=None, y=None, dataset=None, max_hours=None):
+def _query_timeseries(hour=None, x=None, y=None, dataset=None, max_hours=None):
     """
     Accepts a GeoDataFrame of hdf5 grid points attributed with
     (y, x) coordinates and query the hsds interface for an hourly
@@ -241,6 +239,7 @@ def _query_timeseries(f=None, hour=None, x=None, y=None, dataset=None, max_hours
     :param datasets:
     :return:
     """
+    global f
     if not isinstance(hour, list):
         logger.debug("Building a sequence from user-specified single scalar value")
         all_hours = _bootstrap_normal_dist(
@@ -266,8 +265,14 @@ def _query_timeseries(f=None, hour=None, x=None, y=None, dataset=None, max_hours
     ret = DataFrame()
 
     ret[0] = bs_hourlies
-    ret[1] = f[dataset][[(z, x, y) for z in bs_hourlies]]
-
+    try:
+        ret[1] = f[dataset][[(z, x, y) for z in bs_hourlies]]
+    except OSError:
+        logger.debug("Dropped our connection -- picking up where we left off")
+        f.close()
+        time.sleep(10)
+        globals()["f"] = h5.File("/nrel/wtk-us.h5", "r", bucket="nrel-pds-hsds")
+        return _query_timeseries(hour, x, y, dataset, max_hours)
     return ret
 
 
@@ -290,6 +295,8 @@ def attribute_gdf_w_dataset(
     :param dataset:
     :return:
     """
+    global f
+
     logger.debug(
         "Build a target keywords list for our time-series boostrapping" + "procedure"
     )
@@ -299,9 +306,6 @@ def attribute_gdf_w_dataset(
     _kwargs["variance"] = 64
     _kwargs["fun"] = round
     _kwargs["n_samples"] = n_bootstrap_replicates
-
-    logger.debug("Attaching to windtoolkit grid")
-    f = h5.File("/nrel/wtk-us.h5", "r", bucket="nrel-pds-hsds")
 
     WTK_MAX_HOURS = f[dataset].shape[0]
 
@@ -324,47 +328,58 @@ def attribute_gdf_w_dataset(
                 # sample our dataset of interest using time-series boostrapping around
                 # hour z
                 site_aggregate = _query_timeseries(
-                    f, z, row["x"], row["y"], dataset, WTK_MAX_HOURS
+                    z, row["x"], row["y"], dataset, WTK_MAX_HOURS
                 )
                 # fit a quadratic regression for value ~f(hour+hour^2)
                 fitted = _polynomial_ts_estimator(
                     y=site_aggregate[1], x=site_aggregate[0]
                 )
-                y_overall.iloc[j, array(all_hours) == z] = fitted            
-            j+=1
+                y_overall.iloc[j, array(all_hours) == z] = fitted
+            j += 1
             # how YOU doin'?
-            progress.update(j)  
+            progress.update(j)
             if j > len(y_overall):
                 break
-                
+
     # clean-up our session -- don't let the socket sit there lurking
     f.close()
-    del f
 
     return y_overall
 
 
 if __name__ == "__main__":
 
-    datasets = ["windspeed_80m", "windspeed_100m", "windspeed_200m"]
-    dataset = 'windspeed_80m'
-    
-    gdf = GeoDataFrame().from_file("vector/h5_grid.shp")
+    os.chdir("/home/jovyan")
 
-    ws_80m = attribute_gdf_w_dataset(
-        gdf,
-        hour_interval=_HOURS_PER_MONTH,
-        n_bootstrap_replicates=30,
-        dataset=dataset,
-    )
-    
-    attributed_points = [
-        attribute_gdf_w_dataset(
-            gdf,
-            hour_interval=_HOURS_PER_MONTH,
-            n_bootstrap_replicates=30,
-            dataset=dataset,
-        )
-        for dataset in datasets
+    datasets = [
+        "windspeed_80m",
+        "windspeed_100m",
+        "windspeed_200m",
+        "winddirection_80m",
+        "winddirection_100m",
+        "winddirection_200m",
     ]
 
+    gdf = GeoDataFrame().from_file("vector/h5_grid.shp")
+
+    for dataset in datasets:
+        logger.debug(
+            "Iterating over our target WTK datasets and flush the"
+            + "attributed results to disc as we go"
+        )
+        if os.path.exists("vector/" + dataset + ".shp"):
+            print("Existing file found (skipping): " + "vector/" + dataset + ".shp")
+        else:
+            result = gdf.join(
+                attribute_gdf_w_dataset(
+                    gdf,
+                    hour_interval=_HOURS_PER_MONTH,
+                    n_bootstrap_replicates=30,
+                    dataset=dataset,
+                ),
+                rsuffix=dataset,
+            )
+
+            result.to_file("vector/" + dataset + ".shp")
+
+            del result

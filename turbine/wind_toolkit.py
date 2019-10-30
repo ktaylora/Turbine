@@ -210,7 +210,7 @@ def _polynomial_ts_estimator(y=None, x=None, degree=2):
     null_vs_alt_sse = sum(abs(residuals_intercept)) - sum(abs(residuals))
     r_squared = round(null_vs_alt_sse / sum(abs(residuals_intercept)), 2)
 
-    if r_squared < 0.1:
+    if r_squared > 0 and r_squared < 0.1 :
         logger.debug(
             "Warning: Poor regression estimator fit on model hourly ~"
             + str(intercept_m)
@@ -226,7 +226,7 @@ def _polynomial_ts_estimator(y=None, x=None, degree=2):
         )
         return intercept_m
 
-    return mean(round(mean(fitted), 2))
+    return round(mean(fitted), 2)
 
 
 def _query_timeseries(f=None, hour=None, x=None, y=None, dataset=None, max_hours=None):
@@ -316,9 +316,9 @@ def attribute_gdf_w_dataset(
     # pre-allocate a destination table with zeros -- if this fails
     # due to memory limitations it's better to discover it now
     # rather than while we are querying the HSDS interface
-    y_overall = DataFrame(zeros(shape=(len(gdf["id"]), len(all_hours))))
-
-    with tqdm(total=len(gdf)*len(all_hours)) as progress:
+    y_overall = DataFrame(zeros(shape=(len(gdf), len(all_hours))))
+    j = 0
+    with tqdm(total=len(gdf)) as progress:
         for i, row in gdf.iterrows():
             for z in all_hours:
                 # sample our dataset of interest using time-series boostrapping around
@@ -327,11 +327,16 @@ def attribute_gdf_w_dataset(
                     f, z, row["x"], row["y"], dataset, WTK_MAX_HOURS
                 )
                 # fit a quadratic regression for value ~f(hour+hour^2)
-                y_overall.iloc[i, array(all_hours) == z] = _polynomial_ts_estimator(
+                fitted = _polynomial_ts_estimator(
                     y=site_aggregate[1], x=site_aggregate[0]
                 )
-                # how YOU doin'?
-                progress.update(i)
+                y_overall.iloc[j, array(all_hours) == z] = fitted            
+            j+=1
+            # how YOU doin'?
+            progress.update(j)  
+            if j > len(y_overall):
+                break
+                
     # clean-up our session -- don't let the socket sit there lurking
     f.close()
     del f
@@ -342,9 +347,17 @@ def attribute_gdf_w_dataset(
 if __name__ == "__main__":
 
     datasets = ["windspeed_80m", "windspeed_100m", "windspeed_200m"]
-
+    dataset = 'windspeed_80m'
+    
     gdf = GeoDataFrame().from_file("vector/h5_grid.shp")
 
+    ws_80m = attribute_gdf_w_dataset(
+        gdf,
+        hour_interval=_HOURS_PER_MONTH,
+        n_bootstrap_replicates=30,
+        dataset=dataset,
+    )
+    
     attributed_points = [
         attribute_gdf_w_dataset(
             gdf,
@@ -354,3 +367,4 @@ if __name__ == "__main__":
         )
         for dataset in datasets
     ]
+

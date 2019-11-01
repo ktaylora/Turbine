@@ -179,9 +179,14 @@ def generate_h5_grid_geodataframe(
             filter_by_intersection = filter_by_intersection.to_crs(
                 _WIND_TOOLKIT_DEFAULT_EPSG
             )
-        target_rows = gdf.loc[
-            gdf.within(cascaded_union(filter_by_intersection.geometry))
-        ]["id"]
+
+        intersection = []
+        with tqdm(total=len(gdf.geometry)) as progress:
+            for g in gdf.geometry:
+                intersection.append(filter_by_intersection.contains(g))
+                progress.update(1)
+            progress.close()
+
         if len(target_rows) is 0:
             raise AttributeError(
                 "filter_by_intersection= resulted in no" + " intersecting geometries"
@@ -307,7 +312,16 @@ def attribute_gdf_w_dataset(
     _kwargs["fun"] = round
     _kwargs["n_samples"] = n_bootstrap_replicates
 
-    WTK_MAX_HOURS = f[dataset].shape[0]
+    WTK_MAX_HOURS, y, x = f[dataset].shape
+
+    if max(gdf["y"]) > y:
+        raise ValueError(
+            "y coordinate in gdf is outside of the range of our" + "target dataset"
+        )
+    if max(gdf["x"]) > x:
+        raise ValueError(
+            "x coordinate in gdf is outside of the range of our" + "target dataset"
+        )
 
     # assume the user only provided a single scalar value that we should build
     # an hourly time-series with
@@ -350,6 +364,7 @@ def attribute_gdf_w_dataset(
 if __name__ == "__main__":
 
     os.chdir("/home/jovyan")
+    # os.chdir("/home/ktaylora/Incoming/Turbine")
 
     datasets = [
         "windspeed_80m",

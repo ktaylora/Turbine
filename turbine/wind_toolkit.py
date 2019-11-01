@@ -187,11 +187,11 @@ def generate_h5_grid_geodataframe(
                 progress.update(1)
             progress.close()
 
-        if len(target_rows) is 0:
+        if len(intersection) is 0:
             raise AttributeError(
-                "filter_by_intersection= resulted in no" + " intersecting geometries"
+                "filter_by_intersection= resulted in no intersecting geometries"
             )
-        gdf = gdf.iloc[target_rows, :]
+        gdf = gdf.loc[array(intersection)]
 
     gdf.to_file(filename=_HSDS_CACHE_FILE_PATH)
 
@@ -351,7 +351,7 @@ def attribute_gdf_w_dataset(
                 y_overall.iloc[j, array(all_hours) == z] = fitted
             j += 1
             # how YOU doin'?
-            progress.update(j)
+            progress.update(1)
             if j > len(y_overall):
                 break
 

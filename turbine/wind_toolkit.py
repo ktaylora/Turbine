@@ -223,7 +223,7 @@ def _polynomial_ts_estimator(y=None, x=None, degree=2):
         logger.debug(
             "Null model outperformed our regression"
             + " estimator hourly ~"
-            + str(intercept_m)
+            + str(mean(array(x)))
             + "; Returning null (mean) time-series estimate:"
             + str(intercept_m)
         )

@@ -28,6 +28,8 @@ from scipy.stats import norm
 from numpy import poly1d as polynomial_regression
 from numpy import unique, polyfit, mean, linspace, array, zeros, float64
 
+import multiprocessing as mp
+
 try:
     import h5pyd as h5
 except ModuleNotFoundError:
@@ -281,6 +283,14 @@ def _query_timeseries(hour=None, x=None, y=None, dataset=None, max_hours=None):
     return ret
 
 
+def _shotgun(z=None, row=None, dataset=None, max_hours=None):
+    # sample our dataset of interest using time-series boostrapping around
+    # hour z
+    site_aggregate = _query_timeseries(z, row["x"], row["y"], dataset, max_hours)
+    # fit a quadratic regression for value ~f(hour+hour^2)
+    return _polynomial_ts_estimator(y=site_aggregate[1], x=site_aggregate[0])
+
+
 def attribute_gdf_w_dataset(
     gdf=None, hour_interval=None, n_bootstrap_replicates=30, dataset=None
 ):
@@ -336,19 +346,16 @@ def attribute_gdf_w_dataset(
     # rather than while we are querying the HSDS interface
     y_overall = DataFrame(zeros(shape=(len(gdf), len(all_hours))))
     j = 0
+
+    pool = mp.Pool(9)
+
     with tqdm(total=len(gdf)) as progress:
         for i, row in gdf.iterrows():
-            for z in all_hours:
-                # sample our dataset of interest using time-series boostrapping around
-                # hour z
-                site_aggregate = _query_timeseries(
-                    z, row["x"], row["y"], dataset, WTK_MAX_HOURS
-                )
-                # fit a quadratic regression for value ~f(hour+hour^2)
-                fitted = _polynomial_ts_estimator(
-                    y=site_aggregate[1], x=site_aggregate[0]
-                )
-                y_overall.iloc[j, array(all_hours) == z] = fitted
+            result = pool.starmap(
+                _shotgun, [(z, row, dataset, WTK_MAX_HOURS) for z in all_hours]
+            )
+            for i, z in enumerate(result):
+                y_overall.iloc[j, array(all_hours) == all_hours[i]] = z
             j += 1
             # how YOU doin'?
             progress.update(1)
@@ -357,7 +364,7 @@ def attribute_gdf_w_dataset(
 
     # clean-up our session -- don't let the socket sit there lurking
     f.close()
-
+    pool.close()
     return y_overall
 
 
@@ -385,6 +392,7 @@ if __name__ == "__main__":
         if os.path.exists("vector/" + dataset + ".shp"):
             print("Existing file found (skipping): " + "vector/" + dataset + ".shp")
         else:
+
             result = gdf.join(
                 attribute_gdf_w_dataset(
                     gdf,

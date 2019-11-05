@@ -274,7 +274,7 @@ def _query_timeseries(hour=None, x=None, y=None, dataset=None, max_hours=None):
     ret[0] = bs_hourlies
     try:
         ret[1] = f[dataset][[(z, x, y) for z in bs_hourlies]]
-    except OSError:
+    except Exception:
         logger.debug("Dropped our connection -- picking up where we left off")
         f.close()
         time.sleep(10)
@@ -347,7 +347,7 @@ def attribute_gdf_w_dataset(
     y_overall = DataFrame(zeros(shape=(len(gdf), len(all_hours))))
     j = 0
 
-    pool = mp.Pool(9)
+    pool = mp.Pool(8)
 
     with tqdm(total=len(gdf)) as progress:
         for i, row in gdf.iterrows():
@@ -365,6 +365,7 @@ def attribute_gdf_w_dataset(
     # clean-up our session -- don't let the socket sit there lurking
     f.close()
     pool.close()
+    del pool
     return y_overall
 
 
@@ -393,16 +394,16 @@ if __name__ == "__main__":
             print("Existing file found (skipping): " + "vector/" + dataset + ".shp")
         else:
 
-            result = gdf.join(
-                attribute_gdf_w_dataset(
-                    gdf,
-                    hour_interval=_HOURS_PER_MONTH,
-                    n_bootstrap_replicates=30,
-                    dataset=dataset,
-                ),
-                rsuffix=dataset,
+            result = attribute_gdf_w_dataset(
+                gdf,
+                hour_interval=_HOURS_PER_MONTH,
+                n_bootstrap_replicates=30,
+                dataset=dataset,
             )
 
-            result.to_file("vector/" + dataset + ".shp")
+            result.columns = [dataset + "_" + str(n) for n in list(result.columns)]
+            result = gdf.join(result)
+
+            result.to_file("vector/" + dataset + ".geojson", driver="GeoJSON")
 
             del result
